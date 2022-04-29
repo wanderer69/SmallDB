@@ -1,0 +1,49 @@
+{
+  "DB_path": "./db1",
+  "CreateDB": {
+    "Indexes": [
+      {
+        "Fields": [
+          "context"
+        ]
+      },
+      {
+        "Fields": [
+          "fact"
+        ]
+      },
+      {
+        "Fields": [
+          "obj"
+        ]
+      },
+      {
+        "Fields": [
+          "rel"
+        ]
+      },
+      {
+        "Fields": [
+          "subj"
+        ]
+      }
+    ],
+    "Fields": [
+      {
+        "Name": "context"
+      },
+      {
+        "Name": "fact"
+      },
+      {
+        "Name": "obj"
+      },
+      {
+        "Name": "rel"
+      },
+      {
+        "Name": "subj"
+      }
+    ]
+  }
+}

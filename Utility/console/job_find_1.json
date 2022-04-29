@@ -1,0 +1,94 @@
+{
+  "Type": "find",
+  "DB_path": "./db1",
+  "CreateDB": {
+    "Indexes": [
+      {
+        "Fields": [
+          "context"
+        ]
+      },
+      {
+        "Fields": [
+          "fact"
+        ]
+      },
+      {
+        "Fields": [
+          "obj"
+        ]
+      },
+      {
+        "Fields": [
+          "rel"
+        ]
+      },
+      {
+        "Fields": [
+          "subj"
+        ]
+      }
+    ],
+    "Fields": [
+      {
+        "Name": "context"
+      },
+      {
+        "Name": "fact"
+      },
+      {
+        "Name": "obj"
+      },
+      {
+        "Name": "rel"
+      },
+      {
+        "Name": "subj"
+      }
+    ]
+  },
+  "AddRec": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "f*"
+    },
+    {
+      "Name": "obj",
+      "Value": "o*"
+    },
+    {
+      "Name": "rel",
+      "Value": "r*"
+    },
+    {
+      "Name": "subj",
+      "Value": "s*"
+    }
+  ],
+  "Find": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "*"
+    },
+    {
+      "Name": "obj",
+      "Value": "*"
+    },
+    {
+      "Name": "rel",
+      "Value": "*"
+    },
+    {
+      "Name": "subj",
+      "Value": "*"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "Type": "write",
+  "DB_path": "./db1",
+  "NumRec": 10,
+  "AddRec": [
+    {
+      "Name": "context",
+      "Value": "=4*"
+    },
+    {
+      "Name": "fact",
+      "Value": "=2*"
+    },
+    {
+      "Name": "obj",
+      "Value": "=*"
+    },
+    {
+      "Name": "rel",
+      "Value": "=*"
+    },
+    {
+      "Name": "subj",
+      "Value": "=*"
+    }
+  ],
+  "Find": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "*"
+    },
+    {
+      "Name": "obj",
+      "Value": "*"
+    },
+    {
+      "Name": "rel",
+      "Value": "*"
+    },
+    {
+      "Name": "subj",
+      "Value": "*"
+    }
+  ]
+}

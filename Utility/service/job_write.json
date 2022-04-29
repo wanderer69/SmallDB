@@ -1,0 +1,53 @@
+{
+  "DB_path": "./db1",
+  "AddRecs": [
+    {
+      "Rec": [
+    {
+      "Name": "context",
+      "Value": "разговор"
+    },
+    {
+      "Name": "fact",
+      "Value": "факт1"
+    },
+    {
+      "Name": "obj",
+      "Value": "мама"
+    },
+    {
+      "Name": "rel",
+      "Value": "мыла"
+    },
+    {
+      "Name": "subj",
+      "Value": "раму"
+    }
+             ]
+    },
+    {
+      "Rec": [
+    {
+      "Name": "context",
+      "Value": "беседа"
+    },
+    {
+      "Name": "fact",
+      "Value": "факт2"
+    },
+    {
+      "Name": "obj",
+      "Value": "река"
+    },
+    {
+      "Name": "rel",
+      "Value": "впадает_в"
+    },
+    {
+      "Name": "subj",
+      "Value": "озеро"
+    }
+             ]
+    }
+  ]
+}

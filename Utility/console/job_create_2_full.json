@@ -1,0 +1,166 @@
+{
+  "Type": "create",
+  "DB_path": "./db2",
+  "CreateDB": {
+    "Indexes": [
+      {
+        "Fields": [
+"word_form"
+        ]
+      },
+      {
+        "Fields": [
+"word"
+        ]
+      },
+      {
+        "Fields": [
+"POS"
+        ]
+      },
+      {
+        "Fields": [
+"animacy"
+        ]
+      },
+      {
+        "Fields": [
+"aspects"
+        ]
+      },
+      {
+        "Fields": [
+"cases"
+        ]
+      },
+      {
+        "Fields": [
+"genders"
+        ]
+      },
+      {
+        "Fields": [
+"involvement"
+        ]
+      },
+      {
+        "Fields": [
+"moods"
+        ]
+      },
+      {
+        "Fields": [
+"numbers"
+        ]
+      },
+      {
+        "Fields": [
+"persons"
+        ]
+      },
+      {
+        "Fields": [
+"transitivity"
+        ]
+      },
+      {
+        "Fields": [
+"voices"
+        ]
+      },
+      {
+        "Fields": [
+"word_property"
+        ]
+      }
+    ],
+    "Fields": [
+      {
+"Name": "word_form"
+      },
+      {
+"Name": "word"
+      },
+      {
+"Name": "POS"
+      },
+      {
+"Name": "animacy"
+      },
+      {
+"Name": "aspects"
+      },
+      {
+"Name": "cases"
+      },
+      {
+"Name": "genders"
+      },
+      {
+"Name": "involvement"
+      },
+      {
+"Name": "moods"
+      },
+      {
+"Name": "numbers"
+      },
+      {
+"Name": "persons"
+      },
+      {
+"Name": "transitivity"
+      },
+      {
+"Name": "voices"
+      },
+      {
+"Name": "word_property"
+      }
+    ]
+  },
+  "AddRec": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "f*"
+    },
+    {
+      "Name": "obj",
+      "Value": "o*"
+    },
+    {
+      "Name": "rel",
+      "Value": "r*"
+    },
+    {
+      "Name": "subj",
+      "Value": "s*"
+    }
+  ],
+  "Find": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "*"
+    },
+    {
+      "Name": "obj",
+      "Value": "*"
+    },
+    {
+      "Name": "rel",
+      "Value": "*"
+    },
+    {
+      "Name": "subj",
+      "Value": "*"
+    }
+  ]
+}

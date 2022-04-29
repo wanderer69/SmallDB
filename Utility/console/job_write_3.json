@@ -1,0 +1,85 @@
+{
+  "Type": "write",
+  "DB_path": "./db2",
+  "NumRec": 2,
+  "AddRec": [
+      {
+"Name": "word_form",
+      "Value": "=4sёжа.*"
+      },
+      {
+"Name": "word",
+      "Value": "=4sёжа.*"
+      },
+      {
+"Name": "POS",
+      "Value": "=4*"
+      },
+      {
+"Name": "animacy",
+      "Value": "=4*"
+      },
+      {
+"Name": "aspects",
+      "Value": "=4*"
+      },
+      {
+"Name": "cases",
+      "Value": "=4*"
+      },
+      {
+"Name": "genders",
+      "Value": "=4*"
+      },
+      {
+"Name": "involvement",
+      "Value": "=4*"
+      },
+      {
+"Name": "moods",
+      "Value": "=4*"
+      },
+      {
+"Name": "numbers",
+      "Value": "=4*"
+      },
+      {
+"Name": "persons",
+      "Value": "=4*"
+      },
+      {
+"Name": "transitivity",
+      "Value": "=4*"
+      },
+      {
+"Name": "voices",
+      "Value": "=4*"
+      },
+      {
+"Name": "word_property",
+      "Value": "=4*"
+      }
+  ],
+  "Find": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "*"
+    },
+    {
+      "Name": "obj",
+      "Value": "*"
+    },
+    {
+      "Name": "rel",
+      "Value": "*"
+    },
+    {
+      "Name": "subj",
+      "Value": "*"
+    }
+  ]
+}

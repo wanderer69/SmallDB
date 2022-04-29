@@ -1,0 +1,106 @@
+{
+  "Type": "create",
+  "DB_path": "./db2",
+  "CreateDB": {
+    "Indexes": [
+      {
+        "Fields": [
+"word_form"
+        ]
+      },
+      {
+        "Fields": [
+"word"
+        ]
+      }
+    ],
+    "Fields": [
+      {
+"Name": "word_form"
+      },
+      {
+"Name": "word"
+      },
+      {
+"Name": "POS"
+      },
+      {
+"Name": "animacy"
+      },
+      {
+"Name": "aspects"
+      },
+      {
+"Name": "cases"
+      },
+      {
+"Name": "genders"
+      },
+      {
+"Name": "involvement"
+      },
+      {
+"Name": "moods"
+      },
+      {
+"Name": "numbers"
+      },
+      {
+"Name": "persons"
+      },
+      {
+"Name": "transitivity"
+      },
+      {
+"Name": "voices"
+      },
+      {
+"Name": "word_property"
+      }
+    ]
+  },
+  "AddRec": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "f*"
+    },
+    {
+      "Name": "obj",
+      "Value": "o*"
+    },
+    {
+      "Name": "rel",
+      "Value": "r*"
+    },
+    {
+      "Name": "subj",
+      "Value": "s*"
+    }
+  ],
+  "Find": [
+    {
+      "Name": "context",
+      "Value": "c*"
+    },
+    {
+      "Name": "fact",
+      "Value": "*"
+    },
+    {
+      "Name": "obj",
+      "Value": "*"
+    },
+    {
+      "Name": "rel",
+      "Value": "*"
+    },
+    {
+      "Name": "subj",
+      "Value": "*"
+    }
+  ]
+}

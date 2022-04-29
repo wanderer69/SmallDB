@@ -1,0 +1,9 @@
+{
+  "DB_path": "./db1",
+  "FindRec": [
+    {
+      "Name": "context",
+      "Value": "разговор"
+    }
+  ]
+}
