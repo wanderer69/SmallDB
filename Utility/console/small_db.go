@@ -12,9 +12,9 @@ import (
 	"io/ioutil"
 	"time"
 
-	. "arkhangelskiy-dv.ru/SmallDB/Expr"
-	. "arkhangelskiy-dv.ru/SmallDB/v3"
-	. "arkhangelskiy-dv.ru/SmallDB/common"
+	. "github.com/wanderer69/SmallDB/Expr"
+	. "github.com/wanderer69/SmallDB/v3"
+	. "github.com/wanderer69/SmallDB/common"
 )
 
 func Init_Unique_Value() {

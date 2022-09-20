@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	. "arkhangelskiy-dv.ru/SmallDB/Expr"
+	. "github.com/wanderer69/SmallDB/Expr"
 )
 
 func main() {

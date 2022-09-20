@@ -1,8 +1,6 @@
-module arkhangelskiy-dv.ru/SmallDB
+module github.com/wanderer69/SmallDB
 
 go 1.16
-
-replace arkhangelskiy-dv.ru/SmallDB => /home/user/Go_projects/SmallDB
 
 require (
 	github.com/kabukky/httpscerts v0.0.0-20150320125433-617593d7dcb3

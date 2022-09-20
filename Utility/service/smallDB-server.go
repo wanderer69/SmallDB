@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/signal"
 
-	. "arkhangelskiy-dv.ru/SmallDB/server"
+	. "github.com/wanderer69/SmallDB/server"
 )
 
 type Settings struct {

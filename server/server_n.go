@@ -7,16 +7,11 @@ import (
 	"net/http"
 
 	"errors"
-	//	"encoding/base64"
-	// "strings"
 
-	//	"time"
-	// "context"
-
-	. "arkhangelskiy-dv.ru/SmallDB/v3"
+	. "github.com/wanderer69/SmallDB/v3"
 
 	"github.com/kabukky/httpscerts"
-	. "arkhangelskiy-dv.ru/SmallDB/common"
+	. "github.com/wanderer69/SmallDB/common"
 )
 
 func TLSGenKey(port int) error {

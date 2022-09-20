@@ -1,7 +1,7 @@
 package main
 
 import (
-	. "arkhangelskiy-dv.ru/SmallDB/NewBase64"
+	. "github.com/wanderer69/SmallDB/NewBase64"
 	"fmt"
 )
 

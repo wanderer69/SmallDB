@@ -18,7 +18,7 @@ import (
 
 	"regexp"
 	uuid "github.com/satori/go.uuid"
-	. "arkhangelskiy-dv.ru/SmallDB/common"	
+	. "github.com/wanderer69/SmallDB/common"	
 )
 
 const HASHTAB_SIZE = 0x3FFFF
