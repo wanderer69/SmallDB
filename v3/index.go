@@ -1938,6 +1938,7 @@ func (sdb *SmallDB) Store_record_on_map(args map[string]string) (int64, int64, e
 	for k, v := range args {
 		fn, ok := sdb.FieldsNameMap[k]
 		if !ok {
+			fmt.Printf("k %v\r\n", k)
 			return 0, -1000, nil
 		}
 		args_list[fn] = v
@@ -2111,6 +2112,18 @@ func (sdb *SmallDB) Get_field_value_by_name(rec *Record, field_name string) (str
 		return "", errors.New(fmt.Sprintf("Bad field name %v", field_name))
 	}
 	return rec.FieldsValue[fn], nil
+}
+
+func (sdb *SmallDB) Get_fields_value_with_name(rec *Record) ([][]string, error) {
+	//fmt.Printf("Get_field_value_by_name %#v %v\r\n", rec, field_name)
+	result := [][]string{}
+	if len(rec.FieldsValue) != len(sdb.FieldsNameMap) {
+		return result, errors.New("Number of fields in record not equal number of fields in database")
+	}
+	for k, v := range sdb.FieldsNameMap {
+		result = append(result, []string{k, rec.FieldsValue[v]})
+	}
+	return result, nil
 }
 
 func (sdb *SmallDB) Find_record(ind int, args ...string) ([]*Record, int, error) {
