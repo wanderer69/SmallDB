@@ -2596,3 +2596,83 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 	}
 	return data, -2, errors.New("no data")
 }
+
+func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), error) {
+	// data := []*Record{}
+	if !sdb.Inited {
+		return nil, errors.New("Data base not inited")
+	}
+	if sdb.Opened {
+		ptr := (int64)(Data_header_structLen)
+		// открываем файл данных и считываем по очереди
+                j := 0
+//		for j := 0; j < rec; j++ {
+		lazy_load := func() (*Record, int, error) { 
+                        var data *Record
+			if sdb.Debug > 5 {
+				fmt.Printf("current rec %v\r\n", j)
+			}
+			var i int32
+			var num int64
+			data_r := []string{}
+			if sdb.Debug > 6 {
+				fmt.Printf("sdb.Dhs.Field_qty %v\r\n", sdb.Dhs.Field_qty)
+			}
+			for i = 0; i < sdb.Dhs.Field_qty; i++ {
+				len_header := Data_structLen
+				ba, err11 := sdb.ReadData(ptr, len_header)
+				if err11 != nil {
+					fmt.Printf("Error %v\r\n", err11)
+					return data, -12, err11
+				}
+				if sdb.Debug > 9 {
+					fmt.Printf("ba %v\r\n", ba)
+				}
+
+				ds, err, err1 := To_Data(ba)
+				if err < 0 {
+					fmt.Printf("Error %v %v\r\n", err, err1)
+				}
+				if sdb.Debug > 7 {
+					fmt.Printf("ds %#v\r\n", ds)
+				}
+
+				ptr = ptr + (int64)(len_header)
+				if ds.State == 0 {
+					if ds.DataLen == 0 {
+						// it is not error - just no data
+						// return nil, 0, nil
+						data_r = append(data_r, "")
+					} else {
+						ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
+						if err11 != nil {
+							fmt.Printf("Error %v\r\n", err11)
+							return data, -13, err11
+						}
+						if sdb.Debug > 9 {
+							fmt.Printf("ds ba %v\r\n", ba)
+						}
+
+						d := string(ba)
+						data_r = append(data_r, d)
+					}
+					num = ds.Id
+				}
+				ptr = ptr + (int64)(ds.DataLen)
+			}
+			if len(data_r) > 0 {
+				rec := Record{num, data_r}
+				data = &rec
+				if sdb.Debug > 5 {
+					fmt.Printf("data %v\r\n", data)
+				}
+			}
+			return data, 0, nil
+		}
+		return lazy_load, nil
+//		}
+	} else {
+		return nil, errors.New("Data base not opened")
+	}
+	return nil, nil
+}
