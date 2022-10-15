@@ -1096,7 +1096,7 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 
 func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 	if sdb.Debug > 1 {
-		fmt.Println("ReadData")
+		fmt.Println("ReadFreeIndexData")
 	}
 	if sdb.Config.UseSync > 0 {
 		sdb.Data_file.Sync()
@@ -1105,7 +1105,7 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 		newPosition, err := sdb.FreeIndexData_files[ind].Seek(0, 2)
 		if err != nil {
 			if sdb.Debug > 30+2 {
-				fmt.Print("ReadData ")
+				fmt.Print("ReadFreeIndexData ")
 				fmt.Println(err)
 			}
 			os.Exit(-1)
@@ -1118,7 +1118,7 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 		newPosition, err := sdb.FreeIndexData_files[ind].Seek(pos, 0)
 		if err != nil {
 			if sdb.Debug > 30+2 {
-				fmt.Print("ReadData ")
+				fmt.Print("ReadFreeIndexData ")
 				fmt.Println(err)
 			}
 			os.Exit(-1)
@@ -1132,7 +1132,7 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 	bytesRead, err := sdb.FreeIndexData_files[ind].Read(byteSlice)
 	if err != nil {
 		if sdb.Debug > 30+2 {
-			fmt.Print("ReadData ")
+			fmt.Print("ReadFreeIndexData ")
 			fmt.Println(err)
 		}
 		os.Exit(-1)
