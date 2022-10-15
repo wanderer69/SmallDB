@@ -975,8 +975,10 @@ func (sdb *SmallDB) ReadData(pos int64, len int) ([]byte, error) {
 	if pos == -1 {
 		newPosition, err := sdb.Data_file.Seek(0, 2)
 		if err != nil {
-			fmt.Print("ReadData ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("ReadData ")
+				fmt.Println(err)
+			}
 			return []byte{}, err
 			//os.Exit(-1)
 			//log.Fatal(err)
@@ -987,8 +989,10 @@ func (sdb *SmallDB) ReadData(pos int64, len int) ([]byte, error) {
 	} else {
 		newPosition, err := sdb.Data_file.Seek(pos, 0)
 		if err != nil {
-			fmt.Print("ReadData ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("ReadData ")
+				fmt.Println(err)
+			}
                         return []byte{}, err
 			//os.Exit(-1)
 			//log.Fatal(err)
@@ -1000,8 +1004,10 @@ func (sdb *SmallDB) ReadData(pos int64, len int) ([]byte, error) {
 	byteSlice := make([]byte, len)
 	bytesRead, err := sdb.Data_file.Read(byteSlice)
 	if err != nil {
-		fmt.Print("ReadData ")
-		fmt.Println(err)
+		if sdb.Debug > 30+2 {
+			fmt.Print("ReadData ")
+			fmt.Println(err)
+		}
                 return []byte{}, err
 		// os.Exit(-1)
 		// log.Fatal(err)
@@ -1023,8 +1029,10 @@ func (sdb *SmallDB) OpenFreeIndexData(ind int) {
 		0666,
 	) // |os.O_APPEND
 	if err != nil {
-		fmt.Print("OpenFreeIndexData ")
-		fmt.Println(err)
+		if sdb.Debug > 30+5 {
+			fmt.Print("OpenFreeIndexData ")
+			fmt.Println(err)
+		}
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
@@ -1043,8 +1051,10 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 	if pos == -1 {
 		newPosition, err := sdb.FreeIndexData_files[ind].Seek(0, 2)
 		if err != nil {
-			fmt.Print("WriteFreeIndexData ")
-			fmt.Println(err)
+			if sdb.Debug > 30+6 {
+				fmt.Print("WriteFreeIndexData ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1055,8 +1065,10 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 	} else {
 		newPosition, err := sdb.FreeIndexData_files[ind].Seek(pos, 0)
 		if err != nil {
-			fmt.Print("WriteFreeIndexData ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("WriteFreeIndexData ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1069,8 +1081,10 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 	byteSlice := ba
 	bytesWritten, err := sdb.FreeIndexData_files[ind].Write(byteSlice)
 	if err != nil {
-		fmt.Print("WriteFreeIndexData ")
-		fmt.Println(err)
+		if sdb.Debug > 30+2 {
+			fmt.Print("WriteFreeIndexData ")
+			fmt.Println(err)
+		}
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
@@ -1090,8 +1104,10 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 	if pos == -1 {
 		newPosition, err := sdb.FreeIndexData_files[ind].Seek(0, 2)
 		if err != nil {
-			fmt.Print("ReadData ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("ReadData ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1101,8 +1117,10 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 	} else {
 		newPosition, err := sdb.FreeIndexData_files[ind].Seek(pos, 0)
 		if err != nil {
-			fmt.Print("ReadData ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("ReadData ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			// log.Fatal(err)
 		}
@@ -1113,8 +1131,10 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 	byteSlice := make([]byte, len)
 	bytesRead, err := sdb.FreeIndexData_files[ind].Read(byteSlice)
 	if err != nil {
-		fmt.Print("ReadData ")
-		fmt.Println(err)
+		if sdb.Debug > 30+2 {
+			fmt.Print("ReadData ")
+			fmt.Println(err)
+		}
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
@@ -1134,8 +1154,10 @@ func (sdb *SmallDB) OpenBlock() {
 		0666,
 	)
 	if err != nil {
-		fmt.Print("OpenBlock ")
-		fmt.Println(err)
+		if sdb.Debug > 30+2 {
+			fmt.Print("OpenBlock ")
+			fmt.Println(err)
+		}
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
@@ -1154,8 +1176,10 @@ func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 	if pos == -1 {
 		newPosition, err := sdb.Block_file.Seek(0, 2)
 		if err != nil {
-			fmt.Print("WriteBlock ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("WriteBlock ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			// log.Fatal(err)
 		}
@@ -1166,8 +1190,10 @@ func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 	} else {
 		newPosition, err := sdb.Block_file.Seek(pos, 0)
 		if err != nil {
-			fmt.Print("WriteBlock ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("WriteBlock ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1180,8 +1206,10 @@ func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 	byteSlice := ba
 	bytesWritten, err := sdb.Block_file.Write(byteSlice)
 	if err != nil {
-		fmt.Print("WriteBlock ")
-		fmt.Println(err)
+		if sdb.Debug > 30+2 {
+			fmt.Print("WriteBlock ")
+			fmt.Println(err)
+		}
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
@@ -1201,8 +1229,10 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 	if pos == -1 {
 		newPosition, err := sdb.Block_file.Seek(0, 2)
 		if err != nil {
-			fmt.Print("ReadBlock ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("ReadBlock ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1212,8 +1242,10 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 	} else {
 		newPosition, err := sdb.Block_file.Seek(pos, 0)
 		if err != nil {
-			fmt.Print("ReadBlock ")
-			fmt.Println(err)
+			if sdb.Debug > 30+2 {
+				fmt.Print("ReadBlock ")
+				fmt.Println(err)
+			}
 			os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1225,8 +1257,10 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 	byteSlice := make([]byte, len)
 	bytesRead, err := sdb.Block_file.Read(byteSlice)
 	if err != nil {
-		fmt.Print("ReadBlock ")
-		fmt.Println(err)
+		if sdb.Debug > 30+2 {
+			fmt.Print("ReadBlock ")
+			fmt.Println(err)
+		}
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
