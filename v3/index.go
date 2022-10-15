@@ -95,7 +95,6 @@ func Init_SmallDB(path string) SmallDB {
 		sdbc.UseJournal = 0
 		sdbc.UseDeletedData = 0
 		sdbc.IndexesMap = make(map[string]Index_config)
-		// fmt.Printf("sdbc %v\r\n", sdbc)
 		sdb.Config = sdbc
 		sdb.Inited = false
 	} else {
@@ -342,7 +341,7 @@ func To_Data_header(b_in []byte) (Data_header_struct, int, error) {
 }
 
 func From_Data(ds Data_struct) ([]byte, int, error) {
-	len_header := Data_structLen //(int)(unsafe.Sizeof(dhs))
+	len_header := Data_structLen
 	b_in := make([]byte, 0, len_header)
 	var buf = bytes.NewBuffer(b_in)
 	// Unpacked to Packed
@@ -2225,12 +2224,12 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 							len_header := Data_structLen
 							ba, err11 := sdb.ReadData(ptr, len_header)
 							if err11 != nil {
-								fmt.Printf("Error %v\r\n", err11)
+								// fmt.Printf("Error %v\r\n", err11)
 								return data_res, -12, err11
 							}
 							ds, err, err1 := To_Data(ba)
 							if err < 0 {
-								fmt.Printf("Error %v %v\r\n", err, err1)
+								// fmt.Printf("Error %v %v\r\n", err, err1)
 								return data_res, -13, err1
 							}
 							ptr = ptr + (int64)(len_header)
@@ -2241,7 +2240,7 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 							} else {
 								ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 								if err11 != nil {
-									fmt.Printf("Error %v\r\n", err11)
+									// fmt.Printf("Error %v\r\n", err11)
 									return data_res, -14, err11
 								}
 								d = string(ba)
@@ -2349,12 +2348,12 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 						len_header := Data_structLen
 						ba, err11 := sdb.ReadData(ptr, len_header)
 						if err11 != nil {
-							fmt.Printf("Error %v\r\n", err11)
+							// fmt.Printf("Error %v\r\n", err11)
 							return -12, err11
 						}
 						ds, err, err1 := To_Data(ba)
 						if err < 0 {
-							fmt.Printf("Error %v %v\r\n", err, err1)
+							// fmt.Printf("Error %v %v\r\n", err, err1)
 							return -17, err1
 						}
 						// меняем и сохранем
@@ -2371,7 +2370,7 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 						} else {
 							ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 							if err11 != nil {
-								fmt.Printf("Error %v\r\n", err11)
+								// fmt.Printf("Error %v\r\n", err11)
 								return -13, err11
 							}
 							d := string(ba)
@@ -2429,7 +2428,7 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 				len_header := Data_structLen
 				ba, err11 := sdb.ReadData(ptr, len_header)
 				if err11 != nil {
-					fmt.Printf("Error %v\r\n", err11)
+					// fmt.Printf("Error %v\r\n", err11)
 					return data, -12, err11
 				}
 				if sdb.Debug > 9 {
@@ -2438,8 +2437,13 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 
 				ds, err, err1 := To_Data(ba)
 				if err < 0 {
-					fmt.Printf("Error %v %v\r\n", err, err1)
+					// fmt.Printf("Error %v %v\r\n", err, err1)
 				}
+				if err1 != nil {
+					// fmt.Printf("Error %v\r\n", err11)
+					return data, -13, err1
+				}
+
 				if sdb.Debug > 7 {
 					fmt.Printf("ds %#v\r\n", ds)
 				}
@@ -2453,7 +2457,7 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 					} else {
 						ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 						if err11 != nil {
-							fmt.Printf("Error %v\r\n", err11)
+							// fmt.Printf("Error %v\r\n", err11)
 							return data, -13, err11
 						}
 						if sdb.Debug > 9 {
@@ -2537,12 +2541,12 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 						len_header := Data_structLen
 						ba, err11 := sdb.ReadData(ptr, len_header)
 						if err11 != nil {
-							fmt.Printf("Error %v\r\n", err11)
+							// fmt.Printf("Error %v\r\n", err11)
 							return data, -12, err11
 						}
 						ds, err, err1 := To_Data(ba)
 						if err < 0 {
-							fmt.Printf("Error %v %v\r\n", err, err1)
+							// fmt.Printf("Error %v %v\r\n", err, err1)
 							return data, -17, err1
 						}
 						if sdb.Debug > 7 {
@@ -2556,7 +2560,7 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 							} else {
 								ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 								if err11 != nil {
-									fmt.Printf("Error %v\r\n", err11)
+									// fmt.Printf("Error %v\r\n", err11)
 									return data, -13, err11
 								}
 								if sdb.Debug > 9 {
@@ -2622,7 +2626,7 @@ func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), err
 				len_header := Data_structLen
 				ba, err11 := sdb.ReadData(ptr, len_header)
 				if err11 != nil {
-					fmt.Printf("Error %v\r\n", err11)
+					//fmt.Printf("Error %v\r\n", err11)
 					return data, -12, err11
 				}
 				if sdb.Debug > 9 {
@@ -2646,7 +2650,7 @@ func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), err
 					} else {
 						ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 						if err11 != nil {
-							fmt.Printf("Error %v\r\n", err11)
+							//fmt.Printf("Error %v\r\n", err11)
 							return data, -13, err11
 						}
 						if sdb.Debug > 9 {
