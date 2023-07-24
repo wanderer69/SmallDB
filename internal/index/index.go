@@ -10,117 +10,122 @@ import (
 	"encoding/json"
 
 	"encoding/binary"
+	"errors"
 	"hash"
 	"hash/fnv"
 	"os"
-	"errors"
 	"reflect"
 
 	"regexp"
+
 	uuid "github.com/satori/go.uuid"
-	. "github.com/wanderer69/SmallDB/common"	
+
+	"github.com/wanderer69/SmallDB/internal/common"
 )
 
-const HASHTAB_SIZE = 0x3FFFF
-const HASHTAB_MUL = 31
+const HashTabSize = 0x3FFFF
+const HashTabMul = 31
 
-type Index_config struct {
+type IndexConfig struct {
 	FieldsName []string `json:"fields_name"`
 	Free       bool
 	Mask       int64
 }
 
-type SmallDB_config struct {
-	Data_file_name              string                  `json:"data_file_name"`
-	Index_files_name            []string                `json:"index_files_name"`
-	FreeIndex_files_name        []string                `json:"free_index_files_name"`
-	Blocks_file_name            string                  `json:"blocks_file_name"`
-	DeletedData_file_name       string                  `json:"deleted_data_file_name"`
-	DeletedData_index_file_name string                  `json:"deleted_data_index_file_name"`
-	Journal_file_name           string                  `json:"journal_file_name"`
-	RowIndex_file_name          string                  `json:"row_index_file_name"`
-	Block_size                  int32                   `json:"block_size"`
-	HashTable_size              uint32                  `json:"hash_table_size"`
-	UseSync                     int8                    `json:"use_sync"`
-	UseJournal                  int8                    `json:"use_journal"`
-	UseDeletedData              int8                    `json:"use_deleted_data"`
-	DatabaseName                string                  `json:"database_name"`
-	FieldsName                  []string                `json:"fields_name"`
-	Indexes                     []Index_config          `json:"indexes"`
-	IndexesMap                  map[string]Index_config `json:"indexes_map"`
+type SmallDBConfig struct {
+	DataFileName             string                 `json:"data_file_name"`
+	IndexFilesName           []string               `json:"index_files_name"`
+	FreeIndexFilesName       []string               `json:"free_index_files_name"`
+	BlocksFileName           string                 `json:"blocks_file_name"`
+	DeletedDataFileName      string                 `json:"deleted_data_file_name"`
+	DeletedDataIndexFileName string                 `json:"deleted_data_index_file_name"`
+	JournalFileName          string                 `json:"journal_file_name"`
+	RowIndexFileName         string                 `json:"row_index_file_name"`
+	BlockSize                int32                  `json:"block_size"`
+	HashTableSize            uint32                 `json:"hash_table_size"`
+	UseSync                  int8                   `json:"use_sync"`
+	UseJournal               int8                   `json:"use_journal"`
+	UseDeletedData           int8                   `json:"use_deleted_data"`
+	DatabaseName             string                 `json:"database_name"`
+	FieldsName               []string               `json:"fields_name"`
+	Indexes                  []IndexConfig          `json:"indexes"`
+	IndexesMap               map[string]IndexConfig `json:"indexes_map"`
 }
 
 type SmallDB struct {
-	Config                 SmallDB_config
-	Path                   string
-	Inited                 bool // если false - то значит не создана
-	Opened                 bool // если false - то значит не открыта
-	RowIndex_file          *os.File
-	Index_files            []*os.File
-	Data_file              *os.File
-	Block_file             *os.File
-	DeletedData_file       *os.File
-	DeletedData_index_file *os.File
-	Journal_file           *os.File
-	FreeIndexData_files    map[int]*os.File
-	Debug                  int
-	Dhs                    Data_header_struct
-	DDhs                   Data_header_struct
-	Bhs                    Block_header_struct
-	IhsA                   []Index_header_struct
-	RIIhs                  Index_header_struct
-	DDIhs                  Index_header_struct
-	FIDhsA                 map[int]FreeIndexData_header_struct
-	FieldsNameMap          map[string]int
-	Cnt                    int64
+	Config               *SmallDBConfig
+	Path                 string
+	Inited               bool // если false - то значит не создана
+	Opened               bool // если false - то значит не открыта
+	RowIndexFile         *os.File
+	IndexFiles           []*os.File
+	DataFile             *os.File
+	BlockFile            *os.File
+	DeletedDataFile      *os.File
+	DeletedDataIndexFile *os.File
+	JournalFile          *os.File
+	FreeIndexDataFiles   map[int]*os.File
+	Debug                int
+	Dhs                  DataHeaderStruct
+	DDhs                 DataHeaderStruct
+	Bhs                  BlockHeaderStruct
+	IhsA                 []IndexHeaderStruct
+	RIIhs                IndexHeaderStruct
+	DDIhs                IndexHeaderStruct
+	FIDhsA               map[int]FreeIndexDataHeaderStruct
+	FieldsNameMap        map[string]int
+	Cnt                  int64
 }
 
-func Init_SmallDB(path string) SmallDB {
+func InitSmallDB(path string) *SmallDB {
 	sdb := SmallDB{}
+	createConfig := func() {
+		sdbc := SmallDBConfig{
+			DataFileName: "data.bin",
+			// индексов нет.
+			// sdbc.Index_files_name = append(sdbc.Index_files_name, "index0.bin")
+			BlocksFileName:           "blocks.bin",
+			DeletedDataFileName:      "deleted.bin",
+			DeletedDataIndexFileName: "deleted_inx.bin",
+			JournalFileName:          "journal.bin",
+			RowIndexFileName:         "row_index.bin",
+			BlockSize:                22,
+			HashTableSize:            HashTabSize,
+			DatabaseName:             "database",
+			IndexesMap:               make(map[string]IndexConfig),
+		}
+		sdb.Config = &sdbc
+		sdb.Inited = false
+	}
 	file, err := ioutil.ReadFile(path + "/" + "config.json")
 	if err != nil {
-		sdbc := SmallDB_config{}
-		sdbc.Data_file_name = "data.bin"
-		// индексов нет.
-		// sdbc.Index_files_name = append(sdbc.Index_files_name, "index0.bin")
-		sdbc.Blocks_file_name = "blocks.bin"
-		sdbc.DeletedData_file_name = "deleted.bin"
-		sdbc.DeletedData_index_file_name = "deleted_inx.bin"
-		sdbc.Journal_file_name = "journal.bin"
-		sdbc.RowIndex_file_name = "row_index.bin"
-		sdbc.Block_size = 22
-		sdbc.HashTable_size = HASHTAB_SIZE
-		sdbc.DatabaseName = "database"
-		sdbc.UseSync = 0
-		sdbc.UseJournal = 0
-		sdbc.UseDeletedData = 0
-		sdbc.IndexesMap = make(map[string]Index_config)
-		sdb.Config = sdbc
-		sdb.Inited = false
+		createConfig()
 	} else {
-		_ = json.Unmarshal([]byte(file), &sdb.Config)
-		//sdb.Block
 		sdb.Inited = true
+		err = json.Unmarshal([]byte(file), &sdb.Config)
+		if err != nil {
+			createConfig()
+		}
 	}
 	sdb.FieldsNameMap = make(map[string]int)
-	for i, _ := range sdb.Config.FieldsName {
+	for i := range sdb.Config.FieldsName {
 		sdb.FieldsNameMap[sdb.Config.FieldsName[i]] = i
 	}
 	sdb.Path = path
-	sdb.Data_file = nil
-	sdb.Block_file = nil
+	sdb.DataFile = nil
+	sdb.BlockFile = nil
 	sdb.Debug = 0
 	sdb.Cnt = 0
 	sdb.Opened = false
-	return sdb
+	return &sdb
 }
 
-func (sdb *SmallDB) Store_Config_SmallDB() error {
+func (sdb *SmallDB) StoreConfigSmallDB() error {
 	ba, _ := json.MarshalIndent(sdb.Config, "", "  ")
 	err := os.Chmod(sdb.Path+"/"+"config.json", 0777)
 	if err != nil {
 		fmt.Println(err)
-		// return err
+		// skip  error
 	}
 	err1 := ioutil.WriteFile(sdb.Path+"/"+"config.json", ba, 0777)
 	if err1 != nil {
@@ -130,88 +135,88 @@ func (sdb *SmallDB) Store_Config_SmallDB() error {
 	return nil
 }
 
-type Index_header_struct struct {
+type IndexHeaderStruct struct {
 	Id     int64 // идентификатор индекса
 	Mask   int64 // маска индекса (каждый бит это признак присутствия в индексе поля)
 	IsFree uint16
 }
 
-const Index_header_structLen = 16 + 2
+const IndexHeaderStructLen = 16 + 2
 
-type Index_struct struct {
+type IndexStruct struct {
 	Number      int64 // идентификатор индексной записи
 	PointerFar  int64 // указатель на блок
 	PointerNear int32 // указатель внутри блока
 	State       int16 // признак состояния блока     (введено для исправления дефекта определения незанятого индекса)
 }
 
-const INDEX_USED = 1
-const Index_structLen = 8 + 8 + 4 + 2
+const IndexUsed = 1
+const IndexStructLen = 8 + 8 + 4 + 2
 
-type Block_header_struct struct {
+type BlockHeaderStruct struct {
 	Id               int64 // идентификатор индекса
 	PointerNextBlock int64 // идентификатор на следующий блок
 	PointerPrevBlock int64 // идентификатор на предыдущий блок
 	Size             int32 // размер блока
 }
 
-const Block_header_structLen = 8 + 8 + 8 + 4
+const BlockHeaderStructLen = 8 + 8 + 8 + 4
 
-type Block_struct struct {
+type BlockStruct struct {
 	Id          int64 // идентификатор индекса
 	PointerData int64 // указатель на данные
 	PointerFar  int64 // указатель на следующую запись дальний (на блок)
 	PointerNear int32 // указатель на следующую запись внутри блока
 }
 
-const Block_structLen = 8 + 8 + 8 + 4
+const BlockStructLen = 8 + 8 + 8 + 4
 
-type Data_header_struct struct {
+type DataHeaderStruct struct {
 	Id        int64 // идентификатор данных
 	Cnt       int64 // счетчик номера записи
 	Field_qty int32 // количество полей в одной записи
 }
 
-const Data_header_structLen = 8 + 8 + 4
+const DataHeaderStructLen = 8 + 8 + 4
 
-type Data_struct struct {
+type DataStruct struct {
 	Id      int64 // идентификатор записи
 	State   int16 // статус записи 0 - сохранена 1 - требует удаления
 	Field   int32 // номер поля -1 - RowID
 	DataLen int32 // длина строки с данными
 }
 
-const Data_structLen = 8 + 2 + 4 + 4
+const DataStructLen = 8 + 2 + 4 + 4
 
-type FreeIndexData_header_struct struct {
+type FreeIndexDataHeaderStruct struct {
 	Id  int64 // идентификатор индекса файла значений свободного индекса
 	Cnt int64 // счетчик номера записи
 }
 
-const FreeIndexData_header_structLen = 8 + 8
+const FreeIndexDataHeaderStructLen = 8 + 8
 
-type FreeIndexData_struct struct {
+type FreeIndexDataStruct struct {
 	Id      int64 // идентификатор записи
 	State   int16 // статус записи 0 - сохранена 1 - требует удаления
 	DataLen int32 // длина строки с данными
 }
 
-const FreeIndexData_structLen = 8 + 2 + 4 + 4
+const FreeIndexDataStructLen = 8 + 2 + 4 + 4
 
-func From_Index_header(ihs Index_header_struct) ([]byte, int, error) {
+func FromIndexHeader(ihs IndexHeaderStruct) ([]byte, int, error) {
 	// длина
-	len_header := Index_header_structLen
-	var buf = bytes.NewBuffer(make([]byte, 0, len_header))
+	lenHeader := IndexHeaderStructLen
+	var buf = bytes.NewBuffer(make([]byte, 0, lenHeader))
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &ihs); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_Index_header(b_in []byte) (Index_header_struct, int, error) {
-	var ihs Index_header_struct
+func ToIndexHeader(b_in []byte) (IndexHeaderStruct, int, error) {
+	var ihs IndexHeaderStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -222,24 +227,24 @@ func To_Index_header(b_in []byte) (Index_header_struct, int, error) {
 		return ihs, -2, err
 	}
 	// длина
-	len_header := Index_header_structLen
+	len_header := IndexHeaderStructLen
 	return ihs, len_header, nil
 }
 
-func From_Index(is Index_struct) ([]byte, int, error) {
+func FromIndex(is IndexStruct) ([]byte, int, error) {
 	// длина
-	len_header := Index_structLen
-	var buf = bytes.NewBuffer(make([]byte, 0, len_header))
+	lenHeader := IndexStructLen
+	var buf = bytes.NewBuffer(make([]byte, 0, lenHeader))
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &is); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_Index(b_in []byte) (Index_struct, int, error) {
-	var is Index_struct
+func ToIndex(b_in []byte) (IndexStruct, int, error) {
+	var is IndexStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -250,25 +255,25 @@ func To_Index(b_in []byte) (Index_struct, int, error) {
 		return is, -2, err
 	}
 	// длина
-	len_header := Index_structLen
+	len_header := IndexStructLen
 	return is, len_header, nil
 }
 
-func From_Block_header(bhs Block_header_struct) ([]byte, int, error) {
+func FromBlockHeader(bhs BlockHeaderStruct) ([]byte, int, error) {
 	// длина
-	len_header := Block_header_structLen
-	var buf = bytes.NewBuffer(make([]byte, 0, len_header))
+	lenHeader := BlockHeaderStructLen
+	var buf = bytes.NewBuffer(make([]byte, 0, lenHeader))
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &bhs); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
 	// длина
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_Block_header(b_in []byte) (Block_header_struct, int, error) {
-	var bhs Block_header_struct
+func ToBlockHeader(b_in []byte) (BlockHeaderStruct, int, error) {
+	var bhs BlockHeaderStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -279,24 +284,24 @@ func To_Block_header(b_in []byte) (Block_header_struct, int, error) {
 		return bhs, -2, err
 	}
 	// длина
-	len_header := Block_header_structLen
+	len_header := BlockHeaderStructLen
 	return bhs, len_header, nil
 }
 
-func From_Block(bs Block_struct) ([]byte, int, error) {
+func FromBlock(bs BlockStruct) ([]byte, int, error) {
 	// длина
-	len_header := Block_header_structLen
-	var buf = bytes.NewBuffer(make([]byte, 0, len_header))
+	lenHeader := BlockHeaderStructLen
+	var buf = bytes.NewBuffer(make([]byte, 0, lenHeader))
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &bs); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_Block(b_in []byte) (Block_struct, int, error) {
-	var bs Block_struct
+func ToBlock(b_in []byte) (BlockStruct, int, error) {
+	var bs BlockStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -307,25 +312,25 @@ func To_Block(b_in []byte) (Block_struct, int, error) {
 		return bs, -2, err
 	}
 	// длина
-	len_header := Block_structLen
+	len_header := BlockStructLen
 	return bs, len_header, nil
 }
 
-func From_Data_header(dhs Data_header_struct) ([]byte, int, error) {
-	len_header := Data_header_structLen
-	b_in := make([]byte, 0, len_header)
-	var buf = bytes.NewBuffer(b_in)
+func FromDataHeader(dhs DataHeaderStruct) ([]byte, int, error) {
+	lenHeader := DataHeaderStructLen
+	bIn := make([]byte, 0, lenHeader)
+	var buf = bytes.NewBuffer(bIn)
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &dhs); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
 	// длина
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_Data_header(b_in []byte) (Data_header_struct, int, error) {
-	var dhs Data_header_struct
+func ToDataHeader(b_in []byte) (DataHeaderStruct, int, error) {
+	var dhs DataHeaderStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -336,25 +341,25 @@ func To_Data_header(b_in []byte) (Data_header_struct, int, error) {
 		return dhs, -2, err
 	}
 	// длина
-	len_header := Data_header_structLen
+	len_header := DataHeaderStructLen
 	return dhs, len_header, nil
 }
 
-func From_Data(ds Data_struct) ([]byte, int, error) {
-	len_header := Data_structLen
-	b_in := make([]byte, 0, len_header)
-	var buf = bytes.NewBuffer(b_in)
+func FromData(ds DataStruct) ([]byte, int, error) {
+	lenHeader := DataStructLen
+	bIn := make([]byte, 0, lenHeader)
+	var buf = bytes.NewBuffer(bIn)
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &ds); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
 	// длина
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_Data(b_in []byte) (Data_struct, int, error) {
-	var ds Data_struct
+func ToData(b_in []byte) (DataStruct, int, error) {
+	var ds DataStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -365,25 +370,25 @@ func To_Data(b_in []byte) (Data_struct, int, error) {
 		return ds, -2, err
 	}
 	// длина
-	len_header := Data_structLen
+	len_header := DataStructLen
 	return ds, len_header, nil
 }
 
-func From_FreeIndexData_header(dhs FreeIndexData_header_struct) ([]byte, int, error) {
-	len_header := FreeIndexData_header_structLen
-	b_in := make([]byte, 0, len_header)
-	var buf = bytes.NewBuffer(b_in)
+func FromFreeIndexDataHeader(dhs FreeIndexDataHeaderStruct) ([]byte, int, error) {
+	lenHeader := FreeIndexDataHeaderStructLen
+	bIn := make([]byte, 0, lenHeader)
+	var buf = bytes.NewBuffer(bIn)
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &dhs); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
 	// длина
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_FreeIndexData_header(b_in []byte) (FreeIndexData_header_struct, int, error) {
-	var dhs FreeIndexData_header_struct
+func ToFreeIndexDataHeader(b_in []byte) (FreeIndexDataHeaderStruct, int, error) {
+	var dhs FreeIndexDataHeaderStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -394,25 +399,25 @@ func To_FreeIndexData_header(b_in []byte) (FreeIndexData_header_struct, int, err
 		return dhs, -2, err
 	}
 	// длина
-	len_header := FreeIndexData_header_structLen
+	len_header := FreeIndexDataHeaderStructLen
 	return dhs, len_header, nil
 }
 
-func From_FreeIndexData(ds FreeIndexData_struct) ([]byte, int, error) {
-	len_header := FreeIndexData_structLen
-	b_in := make([]byte, 0, len_header)
-	var buf = bytes.NewBuffer(b_in)
+func FromFreeIndexData(ds FreeIndexDataStruct) ([]byte, int, error) {
+	lenHeader := FreeIndexDataStructLen
+	bIn := make([]byte, 0, lenHeader)
+	var buf = bytes.NewBuffer(bIn)
 	// Unpacked to Packed
 	if err := binary.Write(buf, binary.LittleEndian, &ds); err != nil {
 		fmt.Println(err)
 		return []byte{}, -1, err
 	}
 	// длина
-	return buf.Bytes(), len_header, nil
+	return buf.Bytes(), lenHeader, nil
 }
 
-func To_FreeIndexData(b_in []byte) (FreeIndexData_struct, int, error) {
-	var ds FreeIndexData_struct
+func ToFreeIndexData(b_in []byte) (FreeIndexDataStruct, int, error) {
+	var ds FreeIndexDataStruct
 	var buf = bytes.NewBuffer(make([]byte, 0, len(b_in)))
 	if err := binary.Write(buf, binary.BigEndian, &b_in); err != nil {
 		fmt.Println(err)
@@ -423,17 +428,17 @@ func To_FreeIndexData(b_in []byte) (FreeIndexData_struct, int, error) {
 		return ds, -2, err
 	}
 	// длина
-	len_header := FreeIndexData_structLen
+	len_header := FreeIndexDataStructLen
 	return ds, len_header, nil
 }
 
-const ROW_INDEX_ID = 0xFFFF0000
+const RowIndexID = 0xFFFF0000
 
 // delete data index
-func (sdb *SmallDB) OpenDeletedData_index() {
+func (sdb *SmallDB) OpenDeletedDataIndex() {
 	// Open a new file for writing only
 	file, err := os.OpenFile(
-		sdb.Path+"/"+sdb.Config.DeletedData_index_file_name,
+		sdb.Path+"/"+sdb.Config.DeletedDataIndexFileName,
 		os.O_RDWR|os.O_CREATE,
 		0666,
 	)
@@ -442,46 +447,46 @@ func (sdb *SmallDB) OpenDeletedData_index() {
 		fmt.Println(err)
 		os.Exit(-1)
 	}
-	sdb.DeletedData_index_file = file
+	sdb.DeletedDataIndexFile = file
 }
 
-func (sdb *SmallDB) CloseDeletedData_index() {
-	sdb.DeletedData_index_file.Close()
+func (sdb *SmallDB) CloseDeletedDataIndex() {
+	sdb.DeletedDataIndexFile.Close()
 }
 
-func (sdb *SmallDB) WriteDeletedData_index(pos int64, ba []byte) int64 {
+func (sdb *SmallDB) WriteDeletedDataIndex(pos int64, ba []byte) int64 {
 	if sdb.Debug > 1 {
 		fmt.Println("WriteDeletedData_index")
 	}
-	var pos_res int64 = 0
+	var posRes int64 = 0
 	if pos == -1 {
-		newPosition, err := sdb.DeletedData_index_file.Seek(0, 2)
+		newPosition, err := sdb.DeletedDataIndexFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("WriteDeletedData_index ")
 			fmt.Println(err)
-			os.Exit(-1)
 			// log.Fatal(err)
+			os.Exit(-1)
 		}
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	} else {
-		newPosition, err := sdb.DeletedData_index_file.Seek(pos, 0)
+		newPosition, err := sdb.DeletedDataIndexFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("WriteDeletedData_index ")
 			fmt.Println(err)
-			os.Exit(-1)
 			//log.Fatal(err)
+			os.Exit(-1)
 		}
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	}
 	// Write bytes to file
 	byteSlice := ba
-	bytesWritten, err := sdb.DeletedData_index_file.Write(byteSlice)
+	bytesWritten, err := sdb.DeletedDataIndexFile.Write(byteSlice)
 	if err != nil {
 		fmt.Print("WriteDeletedData_index ")
 		//log.Fatal(err)
@@ -491,18 +496,18 @@ func (sdb *SmallDB) WriteDeletedData_index(pos int64, ba []byte) int64 {
 	if sdb.Debug > 3 {
 		fmt.Printf("Wrote %d bytes.\n", bytesWritten)
 	}
-	return pos_res
+	return posRes
 }
 
-func (sdb *SmallDB) ReadDeletedData_index(pos int64, len int) []byte {
+func (sdb *SmallDB) ReadDeletedDataIndex(pos int64, len int) []byte {
 	if sdb.Debug > 1 {
 		fmt.Println("ReadDeletedData_index")
 	}
 	if sdb.Config.UseSync > 0 {
-		sdb.Journal_file.Sync()
+		sdb.JournalFile.Sync()
 	}
 	if pos == -1 {
-		newPosition, err := sdb.DeletedData_index_file.Seek(0, 2)
+		newPosition, err := sdb.DeletedDataIndexFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("ReadDeletedData_index ")
 			fmt.Println(err)
@@ -513,7 +518,7 @@ func (sdb *SmallDB) ReadDeletedData_index(pos int64, len int) []byte {
 			fmt.Println("Just moved to :", newPosition)
 		}
 	} else {
-		newPosition, err := sdb.DeletedData_index_file.Seek(pos, 0)
+		newPosition, err := sdb.DeletedDataIndexFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("ReadDeletedData ")
 			fmt.Println(err)
@@ -525,7 +530,7 @@ func (sdb *SmallDB) ReadDeletedData_index(pos int64, len int) []byte {
 		}
 	}
 	byteSlice := make([]byte, len)
-	bytesRead, err := sdb.DeletedData_index_file.Read(byteSlice)
+	bytesRead, err := sdb.DeletedDataIndexFile.Read(byteSlice)
 	if err != nil {
 		fmt.Print("ReadDeletedData_index ")
 		fmt.Println(err)
@@ -543,7 +548,7 @@ func (sdb *SmallDB) ReadDeletedData_index(pos int64, len int) []byte {
 func (sdb *SmallDB) OpenDeletedData() {
 	// Open a new file for writing only
 	file, err := os.OpenFile(
-		sdb.Path+"/"+sdb.Config.DeletedData_file_name,
+		sdb.Path+"/"+sdb.Config.DeletedDataFileName,
 		os.O_RDWR|os.O_CREATE,
 		0666,
 	)
@@ -553,11 +558,11 @@ func (sdb *SmallDB) OpenDeletedData() {
 		os.Exit(-1)
 		// log.Fatal(err)
 	}
-	sdb.DeletedData_file = file
+	sdb.DeletedDataFile = file
 }
 
 func (sdb *SmallDB) CloseDeletedData() {
-	sdb.DeletedData_file.Close()
+	sdb.DeletedDataFile.Close()
 }
 
 func (sdb *SmallDB) WriteDeletedData(pos int64, ba []byte) int64 {
@@ -566,7 +571,7 @@ func (sdb *SmallDB) WriteDeletedData(pos int64, ba []byte) int64 {
 	}
 	var pos_res int64 = 0
 	if pos == -1 {
-		newPosition, err := sdb.DeletedData_file.Seek(0, 2)
+		newPosition, err := sdb.DeletedDataFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("WriteDeletedData ")
 			fmt.Println(err)
@@ -578,7 +583,7 @@ func (sdb *SmallDB) WriteDeletedData(pos int64, ba []byte) int64 {
 		}
 		pos_res = newPosition
 	} else {
-		newPosition, err := sdb.DeletedData_file.Seek(pos, 0)
+		newPosition, err := sdb.DeletedDataFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("WriteDeletedData ")
 			fmt.Println(err)
@@ -592,7 +597,7 @@ func (sdb *SmallDB) WriteDeletedData(pos int64, ba []byte) int64 {
 	}
 	// Write bytes to file
 	byteSlice := ba
-	bytesWritten, err := sdb.DeletedData_file.Write(byteSlice)
+	bytesWritten, err := sdb.DeletedDataFile.Write(byteSlice)
 	if err != nil {
 		fmt.Print("WriteDeletedData ")
 		fmt.Println(err)
@@ -610,10 +615,10 @@ func (sdb *SmallDB) ReadDeletedData(pos int64, len int) []byte {
 		fmt.Println("ReadDeletedData")
 	}
 	if sdb.Config.UseSync > 0 {
-		sdb.Journal_file.Sync()
+		sdb.JournalFile.Sync()
 	}
 	if pos == -1 {
-		newPosition, err := sdb.DeletedData_file.Seek(0, 2)
+		newPosition, err := sdb.DeletedDataFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("ReadDeletedData ")
 			fmt.Println(err)
@@ -624,7 +629,7 @@ func (sdb *SmallDB) ReadDeletedData(pos int64, len int) []byte {
 			fmt.Println("Just moved to :", newPosition)
 		}
 	} else {
-		newPosition, err := sdb.DeletedData_file.Seek(pos, 0)
+		newPosition, err := sdb.DeletedDataFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("ReadDeletedData ")
 			fmt.Println(err)
@@ -636,7 +641,7 @@ func (sdb *SmallDB) ReadDeletedData(pos int64, len int) []byte {
 		}
 	}
 	byteSlice := make([]byte, len)
-	bytesRead, err := sdb.DeletedData_file.Read(byteSlice)
+	bytesRead, err := sdb.DeletedDataFile.Read(byteSlice)
 	if err != nil {
 		fmt.Print("ReadDeletedData ")
 		fmt.Println(err)
@@ -654,7 +659,7 @@ func (sdb *SmallDB) ReadDeletedData(pos int64, len int) []byte {
 func (sdb *SmallDB) OpenJournal() {
 	// Open a new file for writing only
 	file, err := os.OpenFile(
-		sdb.Path+"/"+sdb.Config.Journal_file_name,
+		sdb.Path+"/"+sdb.Config.JournalFileName,
 		os.O_RDWR|os.O_CREATE,
 		0666,
 	)
@@ -664,20 +669,20 @@ func (sdb *SmallDB) OpenJournal() {
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
-	sdb.Journal_file = file
+	sdb.JournalFile = file
 }
 
 func (sdb *SmallDB) CloseJournal() {
-	sdb.Journal_file.Close()
+	sdb.JournalFile.Close()
 }
 
 func (sdb *SmallDB) WriteJournal(pos int64, ba []byte) int64 {
 	if sdb.Debug > 1 {
 		fmt.Println("WriteJournal")
 	}
-	var pos_res int64 = 0
+	var posRes int64 = 0
 	if pos == -1 {
-		newPosition, err := sdb.Journal_file.Seek(0, 2)
+		newPosition, err := sdb.JournalFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("WriteJournal ")
 			fmt.Println(err)
@@ -687,9 +692,9 @@ func (sdb *SmallDB) WriteJournal(pos int64, ba []byte) int64 {
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	} else {
-		newPosition, err := sdb.Journal_file.Seek(pos, 0)
+		newPosition, err := sdb.JournalFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("WriteJournal ")
 			fmt.Println(err)
@@ -699,11 +704,11 @@ func (sdb *SmallDB) WriteJournal(pos int64, ba []byte) int64 {
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	}
 	// Write bytes to file
 	byteSlice := ba
-	bytesWritten, err := sdb.Journal_file.Write(byteSlice)
+	bytesWritten, err := sdb.JournalFile.Write(byteSlice)
 	if err != nil {
 		fmt.Print("WriteJournal ")
 		fmt.Println(err)
@@ -713,7 +718,7 @@ func (sdb *SmallDB) WriteJournal(pos int64, ba []byte) int64 {
 	if sdb.Debug > 3 {
 		fmt.Printf("Wrote %d bytes.\n", bytesWritten)
 	}
-	return pos_res
+	return posRes
 }
 
 func (sdb *SmallDB) ReadJournal(pos int64, len int) []byte {
@@ -721,10 +726,10 @@ func (sdb *SmallDB) ReadJournal(pos int64, len int) []byte {
 		fmt.Println("ReadJournal")
 	}
 	if sdb.Config.UseSync > 0 {
-		sdb.Journal_file.Sync()
+		sdb.JournalFile.Sync()
 	}
 	if pos == -1 {
-		newPosition, err := sdb.Journal_file.Seek(0, 2)
+		newPosition, err := sdb.JournalFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("ReadJournal ")
 			fmt.Println(err)
@@ -735,7 +740,7 @@ func (sdb *SmallDB) ReadJournal(pos int64, len int) []byte {
 			fmt.Println("Just moved to :", newPosition)
 		}
 	} else {
-		newPosition, err := sdb.Journal_file.Seek(pos, 0)
+		newPosition, err := sdb.JournalFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("ReadJournal ")
 			fmt.Println(err)
@@ -747,7 +752,7 @@ func (sdb *SmallDB) ReadJournal(pos int64, len int) []byte {
 		}
 	}
 	byteSlice := make([]byte, len)
-	bytesRead, err := sdb.Journal_file.Read(byteSlice)
+	bytesRead, err := sdb.JournalFile.Read(byteSlice)
 	if err != nil {
 		fmt.Print("ReadJournal ")
 		fmt.Println(err)
@@ -762,16 +767,16 @@ func (sdb *SmallDB) ReadJournal(pos int64, len int) []byte {
 }
 
 // index
-func (sdb *SmallDB) OpenIndex(index_id int) int {
+func (sdb *SmallDB) OpenIndex(indexID int) int {
 	// Open a new file for writing only
-	f_name := ""
-	if index_id == ROW_INDEX_ID {
-		f_name = sdb.Path + "/" + sdb.Config.RowIndex_file_name
+	fName := ""
+	if indexID == RowIndexID {
+		fName = sdb.Path + "/" + sdb.Config.RowIndexFileName
 	} else {
-		f_name = sdb.Path + "/" + sdb.Config.Index_files_name[index_id]
+		fName = sdb.Path + "/" + sdb.Config.IndexFilesName[indexID]
 	}
 	file, err := os.OpenFile(
-		f_name,
+		fName,
 		os.O_RDWR|os.O_CREATE,
 		0666,
 	)
@@ -781,31 +786,31 @@ func (sdb *SmallDB) OpenIndex(index_id int) int {
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
-	if index_id == ROW_INDEX_ID {
-		sdb.RowIndex_file = file
+	if indexID == RowIndexID {
+		sdb.RowIndexFile = file
 	} else {
-		sdb.Index_files = append(sdb.Index_files, file)
+		sdb.IndexFiles = append(sdb.IndexFiles, file)
 	}
-	return index_id
+	return indexID
 }
 
-func (sdb *SmallDB) CloseIndex(index_id int) {
-	if index_id == ROW_INDEX_ID {
-		sdb.RowIndex_file.Close()
+func (sdb *SmallDB) CloseIndex(indexID int) {
+	if indexID == RowIndexID {
+		sdb.RowIndexFile.Close()
 	} else {
-		sdb.Index_files[index_id].Close()
+		sdb.IndexFiles[indexID].Close()
 	}
 }
 
-func (sdb *SmallDB) WriteIndex(index_id int, pos int64, ba []byte) int64 {
+func (sdb *SmallDB) WriteIndex(indexID int, pos int64, ba []byte) int64 {
 	if sdb.Debug > 1 {
 		fmt.Println("WriteIndex")
 	}
 	var f *os.File
-	if index_id == ROW_INDEX_ID {
-		f = sdb.RowIndex_file
+	if indexID == RowIndexID {
+		f = sdb.RowIndexFile
 	} else {
-		f = sdb.Index_files[index_id]
+		f = sdb.IndexFiles[indexID]
 	}
 	var pos_res int64 = 0
 	if pos == -1 {
@@ -848,15 +853,15 @@ func (sdb *SmallDB) WriteIndex(index_id int, pos int64, ba []byte) int64 {
 	return pos_res
 }
 
-func (sdb *SmallDB) ReadIndex(index_id int, pos int64, len int) []byte {
+func (sdb *SmallDB) ReadIndex(indexID int, pos int64, len int) []byte {
 	if sdb.Debug > 1 {
 		fmt.Println("ReadIndex")
 	}
 	var f *os.File
-	if index_id == ROW_INDEX_ID {
-		f = sdb.RowIndex_file
+	if indexID == RowIndexID {
+		f = sdb.RowIndexFile
 	} else {
-		f = sdb.Index_files[index_id]
+		f = sdb.IndexFiles[indexID]
 	}
 	if sdb.Config.UseSync > 0 {
 		f.Sync()
@@ -903,7 +908,7 @@ func (sdb *SmallDB) ReadIndex(index_id int, pos int64, len int) []byte {
 func (sdb *SmallDB) OpenData() {
 	// Open a new file for writing only
 	file, err := os.OpenFile(
-		sdb.Path+"/"+sdb.Config.Data_file_name,
+		sdb.Path+"/"+sdb.Config.DataFileName,
 		os.O_RDWR|os.O_CREATE,
 		0666,
 	)
@@ -913,11 +918,11 @@ func (sdb *SmallDB) OpenData() {
 		os.Exit(-1)
 		// log.Fatal(err)
 	}
-	sdb.Data_file = file
+	sdb.DataFile = file
 }
 
 func (sdb *SmallDB) CloseData() {
-	sdb.Data_file.Close()
+	sdb.DataFile.Close()
 }
 
 func (sdb *SmallDB) WriteData(pos int64, ba []byte) int64 {
@@ -926,7 +931,7 @@ func (sdb *SmallDB) WriteData(pos int64, ba []byte) int64 {
 	}
 	var pos_res int64 = 0
 	if pos == -1 {
-		newPosition, err := sdb.Data_file.Seek(0, 2)
+		newPosition, err := sdb.DataFile.Seek(0, 2)
 		if err != nil {
 			fmt.Print("WriteData ")
 			fmt.Println(err)
@@ -938,7 +943,7 @@ func (sdb *SmallDB) WriteData(pos int64, ba []byte) int64 {
 		}
 		pos_res = newPosition
 	} else {
-		newPosition, err := sdb.Data_file.Seek(pos, 0)
+		newPosition, err := sdb.DataFile.Seek(pos, 0)
 		if err != nil {
 			fmt.Print("WriteData ")
 			fmt.Println(err)
@@ -952,7 +957,7 @@ func (sdb *SmallDB) WriteData(pos int64, ba []byte) int64 {
 	}
 	// Write bytes to file
 	byteSlice := ba
-	bytesWritten, err := sdb.Data_file.Write(byteSlice)
+	bytesWritten, err := sdb.DataFile.Write(byteSlice)
 	if err != nil {
 		fmt.Print("WriteData ")
 		fmt.Println(err)
@@ -970,10 +975,10 @@ func (sdb *SmallDB) ReadData(pos int64, len int) ([]byte, error) {
 		fmt.Println("ReadData")
 	}
 	if sdb.Config.UseSync > 0 {
-		sdb.Data_file.Sync()
+		sdb.DataFile.Sync()
 	}
 	if pos == -1 {
-		newPosition, err := sdb.Data_file.Seek(0, 2)
+		newPosition, err := sdb.DataFile.Seek(0, 2)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("ReadData ")
@@ -987,13 +992,13 @@ func (sdb *SmallDB) ReadData(pos int64, len int) ([]byte, error) {
 			fmt.Println("Just moved to :", newPosition)
 		}
 	} else {
-		newPosition, err := sdb.Data_file.Seek(pos, 0)
+		newPosition, err := sdb.DataFile.Seek(pos, 0)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("ReadData ")
 				fmt.Println(err)
 			}
-                        return []byte{}, err
+			return []byte{}, err
 			//os.Exit(-1)
 			//log.Fatal(err)
 		}
@@ -1002,13 +1007,13 @@ func (sdb *SmallDB) ReadData(pos int64, len int) ([]byte, error) {
 		}
 	}
 	byteSlice := make([]byte, len)
-	bytesRead, err := sdb.Data_file.Read(byteSlice)
+	bytesRead, err := sdb.DataFile.Read(byteSlice)
 	if err != nil {
 		if sdb.Debug > 30+2 {
 			fmt.Print("ReadData ")
 			fmt.Println(err)
 		}
-                return []byte{}, err
+		return []byte{}, err
 		// os.Exit(-1)
 		// log.Fatal(err)
 	}
@@ -1036,20 +1041,20 @@ func (sdb *SmallDB) OpenFreeIndexData(ind int) {
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
-	sdb.FreeIndexData_files[ind] = file
+	sdb.FreeIndexDataFiles[ind] = file
 }
 
 func (sdb *SmallDB) CloseFreeIndexData(ind int) {
-	sdb.FreeIndexData_files[ind].Close()
+	sdb.FreeIndexDataFiles[ind].Close()
 }
 
 func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 	if sdb.Debug > 1 {
 		fmt.Println("WriteFreeIndexData")
 	}
-	var pos_res int64 = 0
+	var posRes int64 = 0
 	if pos == -1 {
-		newPosition, err := sdb.FreeIndexData_files[ind].Seek(0, 2)
+		newPosition, err := sdb.FreeIndexDataFiles[ind].Seek(0, 2)
 		if err != nil {
 			if sdb.Debug > 30+6 {
 				fmt.Print("WriteFreeIndexData ")
@@ -1061,9 +1066,9 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	} else {
-		newPosition, err := sdb.FreeIndexData_files[ind].Seek(pos, 0)
+		newPosition, err := sdb.FreeIndexDataFiles[ind].Seek(pos, 0)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("WriteFreeIndexData ")
@@ -1075,11 +1080,11 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	}
 	// Write bytes to file
 	byteSlice := ba
-	bytesWritten, err := sdb.FreeIndexData_files[ind].Write(byteSlice)
+	bytesWritten, err := sdb.FreeIndexDataFiles[ind].Write(byteSlice)
 	if err != nil {
 		if sdb.Debug > 30+2 {
 			fmt.Print("WriteFreeIndexData ")
@@ -1091,7 +1096,7 @@ func (sdb *SmallDB) WriteFreeIndexData(ind int, pos int64, ba []byte) int64 {
 	if sdb.Debug > 3 {
 		fmt.Printf("Wrote %d bytes.\n", bytesWritten)
 	}
-	return pos_res
+	return posRes
 }
 
 func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
@@ -1099,10 +1104,10 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 		fmt.Println("ReadFreeIndexData")
 	}
 	if sdb.Config.UseSync > 0 {
-		sdb.Data_file.Sync()
+		sdb.DataFile.Sync()
 	}
 	if pos == -1 {
-		newPosition, err := sdb.FreeIndexData_files[ind].Seek(0, 2)
+		newPosition, err := sdb.FreeIndexDataFiles[ind].Seek(0, 2)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("ReadFreeIndexData ")
@@ -1115,7 +1120,7 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 			fmt.Println("Just moved to :", newPosition)
 		}
 	} else {
-		newPosition, err := sdb.FreeIndexData_files[ind].Seek(pos, 0)
+		newPosition, err := sdb.FreeIndexDataFiles[ind].Seek(pos, 0)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("ReadFreeIndexData ")
@@ -1129,7 +1134,7 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 		}
 	}
 	byteSlice := make([]byte, len)
-	bytesRead, err := sdb.FreeIndexData_files[ind].Read(byteSlice)
+	bytesRead, err := sdb.FreeIndexDataFiles[ind].Read(byteSlice)
 	if err != nil {
 		if sdb.Debug > 30+2 {
 			fmt.Print("ReadFreeIndexData ")
@@ -1149,7 +1154,7 @@ func (sdb *SmallDB) ReadFreeIndexData(ind int, pos int64, len int) []byte {
 func (sdb *SmallDB) OpenBlock() {
 	// Open a new file for writing only
 	file, err := os.OpenFile(
-		sdb.Path+"/"+sdb.Config.Blocks_file_name,
+		sdb.Path+"/"+sdb.Config.BlocksFileName,
 		os.O_RDWR|os.O_CREATE,
 		0666,
 	)
@@ -1161,20 +1166,20 @@ func (sdb *SmallDB) OpenBlock() {
 		os.Exit(-1)
 		//log.Fatal(err)
 	}
-	sdb.Block_file = file
+	sdb.BlockFile = file
 }
 
 func (sdb *SmallDB) CloseBlock() {
-	sdb.Block_file.Close()
+	sdb.BlockFile.Close()
 }
 
 func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 	if sdb.Debug > 1 {
 		fmt.Println("WriteBlock")
 	}
-	var pos_res int64 = 0
+	var posRes int64 = 0
 	if pos == -1 {
-		newPosition, err := sdb.Block_file.Seek(0, 2)
+		newPosition, err := sdb.BlockFile.Seek(0, 2)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("WriteBlock ")
@@ -1186,9 +1191,9 @@ func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	} else {
-		newPosition, err := sdb.Block_file.Seek(pos, 0)
+		newPosition, err := sdb.BlockFile.Seek(pos, 0)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("WriteBlock ")
@@ -1200,11 +1205,11 @@ func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 		if sdb.Debug > 3 {
 			fmt.Println("Just moved to :", newPosition)
 		}
-		pos_res = newPosition
+		posRes = newPosition
 	}
 	// Write bytes to file
 	byteSlice := ba
-	bytesWritten, err := sdb.Block_file.Write(byteSlice)
+	bytesWritten, err := sdb.BlockFile.Write(byteSlice)
 	if err != nil {
 		if sdb.Debug > 30+2 {
 			fmt.Print("WriteBlock ")
@@ -1216,7 +1221,7 @@ func (sdb *SmallDB) WriteBlock(pos int64, ba []byte) int64 {
 	if sdb.Debug > 3 {
 		fmt.Printf("Wrote %d bytes.\n", bytesWritten)
 	}
-	return pos_res
+	return posRes
 }
 
 func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
@@ -1224,10 +1229,10 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 		fmt.Println("ReadBlock")
 	}
 	if sdb.Config.UseSync > 0 {
-		sdb.Block_file.Sync()
+		sdb.BlockFile.Sync()
 	}
 	if pos == -1 {
-		newPosition, err := sdb.Block_file.Seek(0, 2)
+		newPosition, err := sdb.BlockFile.Seek(0, 2)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("ReadBlock ")
@@ -1240,7 +1245,7 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 			fmt.Println("Just moved to :", newPosition)
 		}
 	} else {
-		newPosition, err := sdb.Block_file.Seek(pos, 0)
+		newPosition, err := sdb.BlockFile.Seek(pos, 0)
 		if err != nil {
 			if sdb.Debug > 30+2 {
 				fmt.Print("ReadBlock ")
@@ -1255,7 +1260,7 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 	}
 
 	byteSlice := make([]byte, len)
-	bytesRead, err := sdb.Block_file.Read(byteSlice)
+	bytesRead, err := sdb.BlockFile.Read(byteSlice)
 	if err != nil {
 		if sdb.Debug > 30+2 {
 			fmt.Print("ReadBlock ")
@@ -1271,41 +1276,41 @@ func (sdb *SmallDB) ReadBlock(pos int64, len int) []byte {
 	return byteSlice
 }
 
-func (sdb *SmallDB) ReadBlocks(pos int64) ([]Block_struct, error) {
-	res := []Block_struct{}
+func (sdb *SmallDB) ReadBlocks(pos int64) ([]BlockStruct, error) {
+	res := []BlockStruct{}
 	pos_n := pos
-	for i := 0; i < (int)(sdb.Config.Block_size); i++ {
-		bab := sdb.ReadBlock(pos_n, Block_structLen)
-		bs, _, err := To_Block(bab)
+	for i := 0; i < (int)(sdb.Config.BlockSize); i++ {
+		bab := sdb.ReadBlock(pos_n, BlockStructLen)
+		bs, _, err := ToBlock(bab)
 		if err != nil {
-			return []Block_struct{}, err
+			return []BlockStruct{}, err
 		}
-		pos_n = pos_n + Block_structLen
+		pos_n = pos_n + BlockStructLen
 		res = append(res, bs)
 	}
 	return res, nil
 }
 
-func (sdb *SmallDB) WriteBlocks(pos int64, bsa []Block_struct) error {
+func (sdb *SmallDB) WriteBlocks(pos int64, bsa []BlockStruct) error {
 	pos_n := pos
-	for i := 0; i < (int)(sdb.Config.Block_size); i++ {
+	for i := 0; i < (int)(sdb.Config.BlockSize); i++ {
 		bs := bsa[i]
-		bab, _, err := From_Block(bs)
+		bab, _, err := FromBlock(bs)
 		if err != nil {
 			return err
 		}
 		sdb.WriteBlock(pos_n, bab)
-		pos_n = pos_n + Block_structLen
+		pos_n = pos_n + BlockStructLen
 	}
 	return nil
 }
 
-func (sdb *SmallDB) CreateDB(fields []string, path string) int {
+func (sdb *SmallDB) CreateDB(fields []string, path string) error {
 	if sdb.Debug > 3 {
 		fmt.Println("CreateDB begin")
 	}
 	if sdb.Inited {
-		return -1 // база уже создана, для пересоздания надо СБРОСИТЬ это флаг
+		return errors.New("found created db") // база уже создана, для пересоздания надо СБРОСИТЬ это флаг
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// path not exists. check last path element
@@ -1313,155 +1318,158 @@ func (sdb *SmallDB) CreateDB(fields []string, path string) int {
 		if len(pl) > 1 {
 			pn := strings.Join(pl[:len(pl)-1], "/")
 			if _, err := os.Stat(pn); os.IsNotExist(err) {
-				return -103
+				return err
 			}
 			err := os.MkdirAll(pl[len(pl)-1], 0777)
 			if err == nil || os.IsExist(err) {
 				// return -101 //warum?
 			} else {
-				return -102 // What's going not right
+				return err // What's going not right
 			}
 		} else {
 			// this is name. create directory
 			err := os.MkdirAll(path, 0777)
 			if err == nil || os.IsExist(err) {
-				return -101 //warum?
+				return err //warum?
 			} else {
-				return -102 // What's going not right
+				return err // What's going not right
 			}
 		}
 	}
 	var field_qty int32
 	// удаляем старые файлы если они есть
-	err := os.Remove(path + "/" + sdb.Config.Blocks_file_name)
+	err := os.Remove(path + "/" + sdb.Config.BlocksFileName)
 	if err != nil {
 		fmt.Println(err)
-		//		return -11
+		// skip error
 	}
-	err = os.Remove(path + "/" + sdb.Config.Data_file_name)
+	err = os.Remove(path + "/" + sdb.Config.DataFileName)
 	if err != nil {
 		fmt.Println(err)
+		// skip error
 	}
-	for _, it := range sdb.Config.Index_files_name {
+	for _, it := range sdb.Config.IndexFilesName {
 		err = os.Remove(path + "/" + it)
 		if err != nil {
 			fmt.Println(err)
+			// skip error
 		}
 	}
 	err = os.Remove(path + "/" + "config.json")
 	if err != nil {
 		fmt.Println(err)
+		// skip error
 	}
 	// анализируем поля
 	field_qty = (int32)(len(fields))
 	if field_qty == 0 {
-		return -2
+		return errors.New("empty fields list")
 	}
 	if field_qty > 32 {
-		return -3
+		return errors.New("fields list great 32")
 	}
 	sdb.Config.FieldsName = []string{}
-	for j, it := range fields {
+	r, _ := regexp.Compile(`^([a-z]|[а-я]|[0-9]|[_]){1,64}$`)
+	for _, it := range fields {
 		// надо проверять на недопустимые символы
 		str := strings.ToLower(it)
-		matched, _ := regexp.MatchString(`^([a-z]|[а-я]|[0-9]|[_]){1,64}$`, str)
+		matched := r.MatchString(str)
 		if matched {
 			sdb.Config.FieldsName = append(sdb.Config.FieldsName, it)
 		} else {
-			n := 64 + j
-			return -n
+			return fmt.Errorf("bad field name %v", it)
 		}
 	}
 	// открываем файл данных и записываем заголовок
 	sdb.OpenData()
-	dhs := Data_header_struct{}
+	dhs := DataHeaderStruct{}
 	dhs.Id = 1
 	dhs.Cnt = 0
 	dhs.Field_qty = field_qty
-	ba, _, err := From_Data_header(dhs)
+	ba, _, err := FromDataHeader(dhs)
 	if err != nil {
-		return -5 // ошибка
+		return err // ошибка
 	}
 	sdb.WriteData(-1, ba)
 	// формируем файл с пустым блоком на все количество записей
 	sdb.OpenBlock()
-	bhs := Block_header_struct{}
+	bhs := BlockHeaderStruct{}
 	bhs.Id = 0
 	bhs.PointerPrevBlock = 0
 	bhs.PointerNextBlock = 0
-	ba1, _, err := From_Block_header(bhs)
+	ba1, _, err := FromBlockHeader(bhs)
 	if err != nil {
-		return -6
+		return err
 	}
 	sdb.WriteBlock(-1, ba1)
 	// создаем индекс записей
-	sdb.OpenIndex(ROW_INDEX_ID)
-	ihs := Index_header_struct{}
-	ihs.Id = ROW_INDEX_ID
+	sdb.OpenIndex(RowIndexID)
+	ihs := IndexHeaderStruct{}
+	ihs.Id = RowIndexID
 	ihs.Mask = 0
 	ihs.IsFree = 0
-	ba2, _, err := From_Index_header(ihs)
+	ba2, _, err := FromIndexHeader(ihs)
 	if err != nil {
-		return -7
+		return err
 	}
-	sdb.WriteIndex(ROW_INDEX_ID, -1, ba2)
+	sdb.WriteIndex(RowIndexID, -1, ba2)
 
-	is := Index_struct{}
+	is := IndexStruct{}
 	is.Number = 0
 	is.PointerFar = 0
 	is.PointerNear = 0
 	is.State = 0 // индексная запись пустая!
 	// записываем пустые данные в блок
-	ba3, _, err := From_Index(is)
+	ba3, _, err := FromIndex(is)
 	if err != nil {
-		return -8
+		return err
 	}
 	var i uint32
-	for i = 0; i < sdb.Config.HashTable_size; i++ {
-		sdb.WriteIndex(ROW_INDEX_ID, -1, ba3)
+	for i = 0; i < sdb.Config.HashTableSize; i++ {
+		sdb.WriteIndex(RowIndexID, -1, ba3)
 	}
-	sdb.CloseIndex(ROW_INDEX_ID)
+	sdb.CloseIndex(RowIndexID)
 	if sdb.Config.UseDeletedData > 0 {
 		// создаем файл и индекс для удаляемых записей
 		// открываем файл данных и записываем заголовок
 		sdb.OpenDeletedData()
-		dhs := Data_header_struct{}
+		dhs := DataHeaderStruct{}
 		dhs.Id = 1
 		dhs.Cnt = 0
 		dhs.Field_qty = field_qty
-		ba, _, err := From_Data_header(dhs)
+		ba, _, err := FromDataHeader(dhs)
 		if err != nil {
-			return -9
+			return err
 		}
 		sdb.WriteDeletedData(-1, ba)
 
 		// создаем индекс записей
-		sdb.OpenDeletedData_index()
-		ihs := Index_header_struct{}
-		ihs.Id = ROW_INDEX_ID
+		sdb.OpenDeletedDataIndex()
+		ihs := IndexHeaderStruct{}
+		ihs.Id = RowIndexID
 		ihs.Mask = 0
 		ihs.IsFree = 0
-		ba2, _, err := From_Index_header(ihs)
+		ba2, _, err := FromIndexHeader(ihs)
 		if err != nil {
-			return -11
+			return err
 		}
-		sdb.WriteDeletedData_index(-1, ba2)
+		sdb.WriteDeletedDataIndex(-1, ba2)
 
-		is := Index_struct{}
+		is := IndexStruct{}
 		is.Number = 0
 		is.PointerFar = 0
 		is.PointerNear = 0
 		is.State = 0 // индексная запись пустая!
 		// записываем пустые данные в блок
-		ba3, _, err := From_Index(is)
+		ba3, _, err := FromIndex(is)
 		if err != nil {
-			return -12
+			return err
 		}
 		var i uint32
-		for i = 0; i < sdb.Config.HashTable_size; i++ {
-			sdb.WriteDeletedData_index(-1, ba3)
+		for i = 0; i < sdb.Config.HashTableSize; i++ {
+			sdb.WriteDeletedDataIndex(-1, ba3)
 		}
-		sdb.CloseDeletedData_index()
+		sdb.CloseDeletedDataIndex()
 		sdb.CloseDeletedData()
 	}
 	if sdb.Config.UseJournal > 0 {
@@ -1470,21 +1478,21 @@ func (sdb *SmallDB) CreateDB(fields []string, path string) int {
 	}
 	sdb.CloseData()
 	sdb.CloseBlock()
-	sdb.Store_Config_SmallDB()
+	sdb.StoreConfigSmallDB()
 	if sdb.Debug > 3 {
 		fmt.Printf("Store_Config_SmallDB done\r\n")
 	}
 	sdb.Inited = true
-	return 0
+	return nil
 }
 
 func (sdb *SmallDB) Hash(key string) uint32 {
 	var h uint32 = 0
 
 	for _, p := range []byte(key) {
-		h = h*HASHTAB_MUL + (uint32)(p)
+		h = h*HashTabMul + (uint32)(p)
 	}
-	return h % (uint32)(sdb.Config.HashTable_size)
+	return h % (uint32)(sdb.Config.HashTableSize)
 }
 
 func (sdb *SmallDB) CreateIndex(fields []string) error {
@@ -1497,35 +1505,35 @@ func (sdb *SmallDB) CreateIndex(fields []string) error {
 	if sdb.Debug > 3 {
 		fmt.Printf("index_mask %v\r\n", index_mask)
 	}
-	sdb.Config.Index_files_name = append(sdb.Config.Index_files_name, "index"+fmt.Sprintf("%x", index_mask)+".bin")
-	num := len(sdb.Config.Index_files_name) - 1
+	sdb.Config.IndexFilesName = append(sdb.Config.IndexFilesName, "index"+fmt.Sprintf("%x", index_mask)+".bin")
+	num := len(sdb.Config.IndexFilesName) - 1
 	sdb.OpenIndex(num)
-	ihs := Index_header_struct{}
+	ihs := IndexHeaderStruct{}
 	ihs.Id = 0
 	ihs.Mask = index_mask
 	ihs.IsFree = 0
-	ba1, _, err := From_Index_header(ihs)
+	ba1, _, err := FromIndexHeader(ihs)
 	if err != nil {
 		return err
 	}
 	sdb.WriteIndex(num, -1, ba1)
 
-	is := Index_struct{}
+	is := IndexStruct{}
 	is.Number = 0
 	is.PointerFar = 0
 	is.PointerNear = 0
 	is.State = 0 // индексная запись пустая!
 	// записываем пустые данные в блок
-	ba2, _, err := From_Index(is)
+	ba2, _, err := FromIndex(is)
 	if err != nil {
 		return err
 	}
 	var i uint32
-	for i = 0; i < sdb.Config.HashTable_size; i++ {
+	for i = 0; i < sdb.Config.HashTableSize; i++ {
 		sdb.WriteIndex(num, -1, ba2)
 	}
 
-	ic := Index_config{fields, false, index_mask}
+	ic := IndexConfig{fields, false, index_mask}
 	sdb.Config.Indexes = append(sdb.Config.Indexes, ic)
 
 	inx := strings.Join(fields, ",")
@@ -1534,10 +1542,10 @@ func (sdb *SmallDB) CreateIndex(fields []string) error {
 
 	if false {
 		sdb.OpenFreeIndexData(num)
-		fidhs := FreeIndexData_header_struct{}
+		fidhs := FreeIndexDataHeaderStruct{}
 		fidhs.Id = 1
 		fidhs.Cnt = 0
-		ba, _, err := From_FreeIndexData_header(fidhs)
+		ba, _, err := FromFreeIndexDataHeader(fidhs)
 		if err != nil {
 			return err
 		}
@@ -1546,7 +1554,7 @@ func (sdb *SmallDB) CreateIndex(fields []string) error {
 	}
 
 	sdb.CloseIndex(num)
-	sdb.Store_Config_SmallDB()
+	sdb.StoreConfigSmallDB()
 	return nil
 }
 
@@ -1556,64 +1564,64 @@ func uint64Hasher(algorithm hash.Hash64, text string) int64 {
 }
 
 func (sdb *SmallDB) CreateIndexFree(index_name string) error {
-	sdb.Config.Index_files_name = append(sdb.Config.Index_files_name, "index_"+index_name+".bin")
+	sdb.Config.IndexFilesName = append(sdb.Config.IndexFilesName, "index_"+index_name+".bin")
 
 	num_free := 0
-	for i, _ := range sdb.Config.Indexes {
+	for i := range sdb.Config.Indexes {
 		ic := sdb.Config.Indexes[i]
 		if ic.Free {
 			num_free = num_free + 1
 		}
 	}
 
-	num := len(sdb.Config.Index_files_name) + num_free - 1
+	num := len(sdb.Config.IndexFilesName) + num_free - 1
 
 	sdb.OpenIndex(num)
-	ihs := Index_header_struct{}
+	ihs := IndexHeaderStruct{}
 	ihs.Id = 0
 	ihs.IsFree = 1
 	algorithm := fnv.New64a()
 	ihs.Mask = uint64Hasher(algorithm, index_name)
 
-	ba1, _, err := From_Index_header(ihs)
+	ba1, _, err := FromIndexHeader(ihs)
 	if err != nil {
 		return err
 	}
 	sdb.WriteIndex(num, -1, ba1)
 
-	is := Index_struct{}
+	is := IndexStruct{}
 	is.Number = 0
 	is.PointerFar = 0
 	is.PointerNear = 0
 	is.State = 0 // индексная запись пустая!
 	// записываем пустые данные в блок
-	ba2, _, err := From_Index(is)
+	ba2, _, err := FromIndex(is)
 	if err != nil {
 		return err
 	}
 	var i uint32
-	for i = 0; i < sdb.Config.HashTable_size; i++ {
+	for i = 0; i < sdb.Config.HashTableSize; i++ {
 		sdb.WriteIndex(num, -1, ba2)
 	}
 
 	sdb.OpenFreeIndexData(num)
-	fidhs := FreeIndexData_header_struct{}
+	fidhs := FreeIndexDataHeaderStruct{}
 	fidhs.Id = 1
 	fidhs.Cnt = 0
-	ba, _, err := From_FreeIndexData_header(fidhs)
+	ba, _, err := FromFreeIndexDataHeader(fidhs)
 	if err != nil {
 		return err
 	}
 	sdb.WriteFreeIndexData(num, -1, ba)
 	sdb.CloseFreeIndexData(num)
 
-	ic := Index_config{[]string{index_name}, true, int64(num)}
+	ic := IndexConfig{[]string{index_name}, true, int64(num)}
 	sdb.Config.Indexes = append(sdb.Config.Indexes, ic)
 
 	sdb.Config.IndexesMap[index_name] = ic
 
 	sdb.CloseIndex(num)
-	sdb.Store_Config_SmallDB()
+	sdb.StoreConfigSmallDB()
 	return nil
 }
 
@@ -1676,9 +1684,9 @@ func (sdb *SmallDB) GetIndexId(fields ...interface{}) int {
 	case reflect.String:
 		// запятыми разделяются поля
 		var str string = v.String()
-		str_l := strings.Split(str, ",")
+		strL := strings.Split(str, ",")
 		n := 0
-		for k, it := range str_l {
+		for k, it := range strL {
 			// ищем в списке полей
 			pos := -1
 			for i, fn := range sdb.Config.FieldsName {
@@ -1702,11 +1710,11 @@ func (sdb *SmallDB) GetIndexId(fields ...interface{}) int {
 		object := reflect.ValueOf(v.Interface())
 		n := 0
 		for k := 0; k < v.Len(); k++ {
-			str_l := reflect.ValueOf(object.Index(k).Interface())
+			strL := reflect.ValueOf(object.Index(k).Interface())
 			it := ""
-			switch str_l.Kind() {
+			switch strL.Kind() {
 			case reflect.String:
-				it = str_l.String()
+				it = strL.String()
 			default:
 				return -100
 			}
@@ -1736,78 +1744,78 @@ func (sdb *SmallDB) GetIndexId(fields ...interface{}) int {
 	return res
 }
 
-func (sdb *SmallDB) OpenDB() (int, error) {
+func (sdb *SmallDB) OpenDB() error {
 	if !sdb.Inited {
-		return -1, nil
+		return errors.New("not initialized db")
 	}
 	// открываем файл данных и считываем заголовок
 	sdb.OpenData()
-	len_d_header := Data_header_structLen
-	ba, err11 := sdb.ReadData(0, len_d_header)
+	lenDataHeader := DataHeaderStructLen
+	ba, err11 := sdb.ReadData(0, lenDataHeader)
 	if err11 != nil {
 		fmt.Printf("Error %v\r\n", err11)
-		return -2, err11
+		return err11
 	}
-	dhs, err, err1 := To_Data_header(ba)
+	dhs, err, err1 := ToDataHeader(ba)
 	if err < 0 {
 		fmt.Printf("Error %v %v\r\n", err, err1)
-		return err, err1
+		return err1
 	}
 	sdb.Dhs = dhs
 	// формируем индексный файл на все количество записей
 	sdb.OpenBlock()
-	len_b_header := Block_header_structLen
-	bab := sdb.ReadBlock(0, len_b_header)
-	bhs, err, err1 := To_Block_header(bab)
+	lenBlockHeader := BlockHeaderStructLen
+	bab := sdb.ReadBlock(0, lenBlockHeader)
+	bhs, err, err1 := ToBlockHeader(bab)
 	if err < 0 {
-		fmt.Printf("Error %v\r\n", err, err1)
-		return err, err1
+		fmt.Printf("Error %v %v\r\n", err, err1)
+		return err1
 	}
 	sdb.Bhs = bhs
 	// теоретически надо загрузить начальный блок?
 	// открываем известные индексы
-	for i, _ := range sdb.Config.Index_files_name {
+	for i := range sdb.Config.IndexFilesName {
 		sdb.OpenIndex(i)
-		len_i_header := Index_header_structLen
-		bai := sdb.ReadIndex(i, 0, len_i_header)
-		ihs, err, err1 := To_Index_header(bai)
+		lenIndexHeader := IndexHeaderStructLen
+		bai := sdb.ReadIndex(i, 0, lenIndexHeader)
+		ihs, err, err1 := ToIndexHeader(bai)
 		if err < 0 {
 			fmt.Printf("Error %v %v\r\n", err, err1)
-			return err, err1
+			return err1
 		}
 		sdb.IhsA = append(sdb.IhsA, ihs)
 	}
 	// загружаем индекс
-	sdb.OpenIndex(ROW_INDEX_ID)
-	len_i_header := Index_header_structLen
-	bai := sdb.ReadIndex(ROW_INDEX_ID, 0, len_i_header)
-	ihs, err, err1 := To_Index_header(bai)
+	sdb.OpenIndex(RowIndexID)
+	lenIndexHeader := IndexHeaderStructLen
+	bai := sdb.ReadIndex(RowIndexID, 0, lenIndexHeader)
+	ihs, err, err1 := ToIndexHeader(bai)
 	if err < 0 {
 		fmt.Printf("Error %v %v\r\n", err, err1)
-		return err, err1
+		return err1
 	}
 	sdb.RIIhs = ihs
-	sdb.FreeIndexData_files = make(map[int]*os.File)
+	sdb.FreeIndexDataFiles = make(map[int]*os.File)
 
 	if sdb.Config.UseDeletedData > 0 {
 		// создаем файл и индекс для удаляемых записей
 		// открываем файл данных и записываем заголовок
 		sdb.OpenDeletedData()
-		len_d_header := Data_header_structLen
-		ba := sdb.ReadDeletedData(0, len_d_header)
-		dhs, err, err1 := To_Data_header(ba)
+		lenDataHeader := DataHeaderStructLen
+		ba := sdb.ReadDeletedData(0, lenDataHeader)
+		dhs, err, err1 := ToDataHeader(ba)
 		if err < 0 {
 			fmt.Printf("Error %v %v\r\n", err, err1)
-			return err, err1
+			return err1
 		}
 		sdb.DDhs = dhs
-		sdb.OpenDeletedData_index()
-		len_i_header := Index_header_structLen
-		bai := sdb.ReadDeletedData_index(0, len_i_header)
-		ihs, err, err1 := To_Index_header(bai)
+		sdb.OpenDeletedDataIndex()
+		lenIndexHeader := IndexHeaderStructLen
+		bai := sdb.ReadDeletedDataIndex(0, lenIndexHeader)
+		ihs, err, err1 := ToIndexHeader(bai)
 		if err < 0 {
 			fmt.Printf("Error %v %v\r\n", err, err1)
-			return err, err1
+			return err1
 		}
 		sdb.DDIhs = ihs
 	}
@@ -1817,7 +1825,7 @@ func (sdb *SmallDB) OpenDB() (int, error) {
 	}
 	// открываем доступ к базе
 	sdb.Opened = true
-	return 0, nil
+	return nil
 }
 
 type IndexData struct {
@@ -1828,9 +1836,9 @@ type IndexData struct {
 
 func (sdb *SmallDB) MakeIndexData(ind int, inxd IndexData, pos_g int64) error {
 	inx := sdb.Hash(inxd.Data)
-	pos_inx := (int64)(Index_header_structLen + inx*Index_structLen)
-	bai := sdb.ReadIndex(ind, pos_inx, Index_structLen)
-	is, _, err := To_Index(bai)
+	posInx := (int64)(IndexHeaderStructLen + inx*IndexStructLen)
+	bai := sdb.ReadIndex(ind, posInx, IndexStructLen)
+	is, _, err := ToIndex(bai)
 	if err != nil {
 		return err
 	}
@@ -1840,12 +1848,12 @@ func (sdb *SmallDB) MakeIndexData(ind int, inxd IndexData, pos_g int64) error {
 		is.Number = (int64)(inx)
 		// строим новый блок
 		// первый из группы
-		bs := Block_struct{}
+		bs := BlockStruct{}
 		bs.Id = (int64)(inx)
 		bs.PointerData = inxd.Pos
 		bs.PointerFar = 0
 		bs.PointerNear = 0
-		ba2, _, err := From_Block(bs)
+		ba2, _, err := FromBlock(bs)
 		if err != nil {
 			return err
 		}
@@ -1854,47 +1862,46 @@ func (sdb *SmallDB) MakeIndexData(ind int, inxd IndexData, pos_g int64) error {
 		// записываем пустые данные в блок
 		bs.Id = 0
 		bs.PointerData = 0
-		ba3, _, err := From_Block(bs)
+		ba3, _, err := FromBlock(bs)
 		if err != nil {
 			return err
 		}
-		for i := 1; i < (int)(sdb.Config.Block_size); i++ {
+		for i := 1; i < (int)(sdb.Config.BlockSize); i++ {
 			sdb.WriteBlock(-1, ba3)
 		}
 		is.PointerFar = pos
 		is.PointerNear = 0
-		is.State = INDEX_USED
-		bai, _, err = From_Index(is)
+		is.State = IndexUsed
+		bai, _, err = FromIndex(is)
 		if err != nil {
 			return err
 		}
-		sdb.WriteIndex(ind, pos_inx, bai)
+		sdb.WriteIndex(ind, posInx, bai)
 	} else {
-		next_ptr := is.PointerFar
-		first_ptr := next_ptr
-		flag_break := false
-		var bs_first Block_struct
-		flag_use := true
+		nextPtr := is.PointerFar
+		firstPtr := nextPtr
+		flagBreak := false
+		var bsFirst BlockStruct
+		flagUse := true
 		for {
 			// такой блок уже есть считываем его
 			// читаем группу блоков из из sdb.Config.Block_size
-			bsa, err := sdb.ReadBlocks((int64)(next_ptr))
+			bsa, err := sdb.ReadBlocks((int64)(nextPtr))
 			if err != nil {
 				return err
 			}
-			if next_ptr == first_ptr {
-				bs_first = bsa[0]
+			if nextPtr == firstPtr {
+				bsFirst = bsa[0]
 				// смотрим, что в первом блоке - .PointerFar ненулевое значение.
 				// переходим сразу к этому номеру блока
-				if bsa[sdb.Config.Block_size-1].PointerFar != 0 {
-					next_ptr = bsa[sdb.Config.Block_size-1].PointerFar
-					flag_use = false
-				} else {
+				if bsa[sdb.Config.BlockSize-1].PointerFar != 0 {
+					nextPtr = bsa[sdb.Config.BlockSize-1].PointerFar
+					flagUse = false
 				}
 			} else {
-				flag_use = true
+				flagUse = true
 			}
-			if flag_use {
+			if flagUse {
 				// ищем конец и добавляем
 				flag := true
 				for j, bs := range bsa {
@@ -1904,26 +1911,26 @@ func (sdb *SmallDB) MakeIndexData(ind int, inxd IndexData, pos_g int64) error {
 						bsa[j].PointerFar = 0
 						bsa[j].PointerNear = 0
 						if j > 0 {
-							bsa[j-1].PointerNear = (int32)(j * Block_structLen)
+							bsa[j-1].PointerNear = (int32)(j * BlockStructLen)
 						}
-						sdb.WriteBlocks((int64)(next_ptr), bsa)
+						sdb.WriteBlocks((int64)(nextPtr), bsa)
 						flag = false
-						flag_break = true
+						flagBreak = true
 						break
 					}
 				}
 				if flag {
 					// проверяем, что в последнем блоке нет указателя
-					if bsa[sdb.Config.Block_size-1].PointerFar != 0 {
-						next_ptr = bsa[sdb.Config.Block_size-1].PointerFar
+					if bsa[sdb.Config.BlockSize-1].PointerFar != 0 {
+						nextPtr = bsa[sdb.Config.BlockSize-1].PointerFar
 					} else {
 						// строим новый блок
-						bs := Block_struct{}
+						bs := BlockStruct{}
 						bs.Id = (int64)(inx)
 						bs.PointerData = inxd.Pos
 						bs.PointerFar = 0
 						bs.PointerNear = 0
-						ba2, _, err := From_Block(bs)
+						ba2, _, err := FromBlock(bs)
 						if err != nil {
 							return err
 						}
@@ -1934,30 +1941,30 @@ func (sdb *SmallDB) MakeIndexData(ind int, inxd IndexData, pos_g int64) error {
 						// формируем и ...
 						bs.Id = 0
 						bs.PointerData = 0
-						ba3, _, err := From_Block(bs)
+						ba3, _, err := FromBlock(bs)
 						if err != nil {
 							return err
 						}
 						// записываем остальные пустые блоки
-						for k := 1; k < (int)(sdb.Config.Block_size); k++ {
+						for k := 1; k < (int)(sdb.Config.BlockSize); k++ {
 							sdb.WriteBlock(-1, ba3)
 						}
 						// корректируем в последнем блоке дальний указатель на позицию нового блока
-						bsa[sdb.Config.Block_size-1].PointerFar = pos
-						bsa[sdb.Config.Block_size-1].PointerNear = 0
-						sdb.WriteBlocks((int64)(next_ptr), bsa)
+						bsa[sdb.Config.BlockSize-1].PointerFar = pos
+						bsa[sdb.Config.BlockSize-1].PointerNear = 0
+						sdb.WriteBlocks((int64)(nextPtr), bsa)
 						// и корректируем PointerFar в первом элементе самого первого блока
-						bs_first.PointerFar = pos
-						ba4, _, err := From_Block(bs_first)
+						bsFirst.PointerFar = pos
+						ba4, _, err := FromBlock(bsFirst)
 						if err != nil {
 							return err
 						}
-						sdb.WriteBlock(first_ptr, ba4)
-						flag_break = true
+						sdb.WriteBlock(firstPtr, ba4)
+						flagBreak = true
 					}
 				}
 			}
-			if flag_break {
+			if flagBreak {
 				break
 			}
 		}
@@ -1965,88 +1972,82 @@ func (sdb *SmallDB) MakeIndexData(ind int, inxd IndexData, pos_g int64) error {
 	return nil
 }
 
-func (sdb *SmallDB) Store_record_on_map(args map[string]string) (int64, int64, error) {
+func (sdb *SmallDB) StoreRecordOnMap(args map[string]string) (int64, int64, error) {
 	//fmt.Printf("len(args) %v args %#v\r\n", len(args), args)
-	args_list := make([]string, len(sdb.FieldsNameMap))
+	argsList := make([]string, len(sdb.FieldsNameMap))
 	for k, v := range args {
 		fn, ok := sdb.FieldsNameMap[k]
 		if !ok {
 			fmt.Printf("k %v\r\n", k)
 			return 0, -1000, nil
 		}
-		args_list[fn] = v
+		argsList[fn] = v
 	}
-	return sdb.Store_record_strings(args_list)
+	return sdb.StoreRecordStrings(argsList)
 }
 
-func (sdb *SmallDB) Store_record(args ...string) (int64, int64, error) {
+func (sdb *SmallDB) StoreRecord(args ...string) (int64, int64, error) {
 	args_list := []string{}
-	for i, _ := range args {
-		args_list = append(args_list, args[i])
-	}
-	return sdb.Store_record_strings(args_list)
+	args_list = append(args_list, args...)
+	return sdb.StoreRecordStrings(args_list)
 }
 
-func (sdb *SmallDB) Store_record_strings(args []string) (int64, int64, error) {
+func (sdb *SmallDB) StoreRecordStrings(args []string) (int64, int64, error) {
 	// возвращает либо отрицательное значение - ошибка, либо позицию записанных данных
 	var result int64 = 0
 	var num int64 = -1
 	if !sdb.Inited {
-		return -1, num, errors.New("Data base not inited")
+		return -1, num, errors.New("data base not inited")
 	}
 	if sdb.Opened {
 		// открываем файл данных и считываем заголовок
 		if len(args) == (int)(sdb.Dhs.Field_qty) {
 			// формируем запись и параллельно индекс
-			inx_data := []IndexData{}
-			for _, _ = range sdb.IhsA {
-				d := IndexData{}
-				d.Data = ""
-				d.Pos = 0
-				inx_data = append(inx_data, d)
-			}
-			var pos_g int64 = 0
-			if false {
-				uuid_ := uuid.NewV4()
-				/*
-				uuid_, err := uuid.NewV4()
-				if err != nil {
-					fmt.Printf("Something went wrong: %s", err)
-					return -1, -101, err
+			inxData := make([]IndexData, len(sdb.IhsA))
+			/*
+				if false {
+					for _ = range sdb.IhsA {
+						d := IndexData{}
+						d.Data = ""
+						d.Pos = 0
+						inxData = append(inxData, d)
+					}
 				}
-				*/
-				row_id := uuid_.Bytes()
-				ds := Data_struct{}
+			*/
+			var posG int64 = 0
+			if false {
+				rowID := uuid.NewV4().Bytes()
+				ds := DataStruct{}
 				ds.Id = sdb.Cnt
 				ds.State = 0
 				ds.Field = -1 // RowID
-				ds.DataLen = (int32)(len(row_id))
-				ba, _, err := From_Data(ds)
+				ds.DataLen = (int32)(len(rowID))
+				ba, _, err := FromData(ds)
 				if err != nil {
 					return -1, -1, err
 				}
 				pos := sdb.WriteData(-1, ba)
-				pos_g = pos
+				posG = pos
 				// присваиваем значение начала записи
 				result = pos
-				ba = []byte(row_id)
+				ba = []byte(rowID)
 				sdb.WriteData(-1, ba)
 			}
 			for i, it := range args {
-				ds := Data_struct{}
+				ds := DataStruct{}
 				ds.Id = sdb.Cnt
 				ds.State = 0
 				ds.Field = (int32)(i)
-				// whats do if length of data is zero? 
+				// whats do if length of data is zero?
 				ds.DataLen = (int32)(len(it))
-				ba, _, err := From_Data(ds)
+				ba, _, err := FromData(ds)
 				if err != nil {
 					return -1, -1, err
 				}
 				pos := sdb.WriteData(-1, ba)
 				if true {
 					if i == 0 {
-						pos_g = pos
+						posG = pos
 						// присваиваем значение начала записи
 						result = pos
 					}
@@ -2057,101 +2058,99 @@ func (sdb *SmallDB) Store_record_strings(args []string) (int64, int64, error) {
 				for j, ihs := range sdb.IhsA {
 					n := (1 << (uint32)(i)) & ihs.Mask
 					if n > 0 {
-						inx_data[j].Data = inx_data[j].Data + " | " + it
-						inx_data[j].Pos = pos_g
-						inx_data[j].Mask = ihs.Mask
+						inxData[j].Data = inxData[j].Data + " | " + it
+						inxData[j].Pos = posG
+						inxData[j].Mask = ihs.Mask
 					}
 				}
 			}
 			// добавление в RowIndex
 			RowIndexData := fmt.Sprintf("%0d", sdb.Cnt)
-			inxd_r := IndexData{}
-			inxd_r.Data = RowIndexData
-			inxd_r.Pos = pos_g
-			sdb.MakeIndexData(ROW_INDEX_ID, inxd_r, pos_g)
+			inxDataRow := IndexData{}
+			inxDataRow.Data = RowIndexData
+			inxDataRow.Pos = posG
+			sdb.MakeIndexData(RowIndexID, inxDataRow, posG)
 			// добавление в остальные индексы
-			for i, _ := range sdb.IhsA {
-				inxd := inx_data[i]
+			for i := range inxData {
+				inxd := inxData[i]
 				if len(inxd.Data) > 0 {
-					sdb.MakeIndexData(i, inxd, pos_g)
-				} else {
-					// этого индекса нет. Пропускаем.
+					sdb.MakeIndexData(i, inxd, posG)
 				}
 			}
 			num = sdb.Cnt
 			sdb.Cnt = sdb.Cnt + 1
 			// сохраняем счетчик записей
 			sdb.Dhs.Cnt = sdb.Cnt
-			ba, _, err := From_Data_header(sdb.Dhs)
+			ba, _, err := FromDataHeader(sdb.Dhs)
 			if err != nil {
 				return -1, -1, err
 			}
 			sdb.WriteData(0, ba)
 		}
 	} else {
-		return -5, num, errors.New("Data base not opened")
+		return -1, num, errors.New("data base not opened")
 	}
 	return result, num, nil
 }
 
-func (sdb *SmallDB) StoreFreeIndex(index_name string, index_data string, pos_g int64) (int64, error) {
-	var result int64 = 0
+func (sdb *SmallDB) StoreFreeIndex(indexName string, indexData string, posG int64) (int64, error) {
+	result := int64(0)
 	if !sdb.Inited {
-		return -1, errors.New("Data base not inited")
+		return -1, errors.New("data base not inited")
 	}
 	if sdb.Opened {
 		// открываем файл данных и считываем заголовок
 		// формируем запись и параллельно индекс
-		inx_data := []IndexData{}
-		for _, _ = range sdb.IhsA {
-			d := IndexData{}
-			d.Data = ""
-			d.Pos = 0
-			inx_data = append(inx_data, d)
-		}
+		inxData := make([]IndexData, len(sdb.IhsA))
+		/*
+			for _, _ = range sdb.IhsA {
+				d := IndexData{}
+				d.Data = ""
+				d.Pos = 0
+				inx_data = append(inx_data, d)
+			}
+		*/
 		// найдем имя свободного индекса
 		algorithm := fnv.New64a()
-		ihs_Mask := uint64Hasher(algorithm, index_name)
+		ihsMask := uint64Hasher(algorithm, indexName)
 		// надо найти индекс
 		for j, ihs := range sdb.IhsA {
 			if ihs.IsFree != 0 {
-				if ihs.Mask == ihs_Mask {
-					inx_data[j].Data = index_data
-					inx_data[j].Pos = pos_g
-					inx_data[j].Mask = ihs.Mask
+				if ihs.Mask == ihsMask {
+					inxData[j].Data = indexData
+					inxData[j].Pos = posG
+					inxData[j].Mask = ihs.Mask
 				}
 			}
 		}
-		for i, _ := range sdb.IhsA {
-			inxd := inx_data[i]
+		for i := range sdb.IhsA {
+			inxd := inxData[i]
 			if len(inxd.Data) > 0 {
-				sdb.MakeIndexData(i, inxd, pos_g)
-			} else {
-				// этого индекса нет. Пропускаем.
+				sdb.MakeIndexData(i, inxd, posG)
 			}
 		}
 		// добавляем запись в свободный индекс
 		result = sdb.Cnt
 	} else {
-		return -5, errors.New("Data base not opened")
+		return -5, errors.New("data base not opened")
 	}
 	return result, nil
 }
 
-func (sdb *SmallDB) Get_field_value_by_name(rec *Record, field_name string) (string, error) {
+func (sdb *SmallDB) GetFieldValueByName(rec *common.Record, fieldName string) (string, error) {
 	//fmt.Printf("Get_field_value_by_name %#v %v\r\n", rec, field_name)
-	fn, ok := sdb.FieldsNameMap[field_name]
+	fn, ok := sdb.FieldsNameMap[fieldName]
 	if !ok {
-		return "", errors.New(fmt.Sprintf("Bad field name %v", field_name))
+		return "", fmt.Errorf("bad field name %v", fieldName)
 	}
 	return rec.FieldsValue[fn], nil
 }
 
-func (sdb *SmallDB) Get_fields_value_with_name(rec *Record) ([][]string, error) {
+func (sdb *SmallDB) GetFieldsValueWithName(rec *common.Record) ([][]string, error) {
 	//fmt.Printf("Get_field_value_by_name %#v %v\r\n", rec, field_name)
 	result := [][]string{}
 	if len(rec.FieldsValue) != len(sdb.FieldsNameMap) {
-		return result, errors.New("Number of fields in record not equal number of fields in database")
+		return result, errors.New("number of fields in record not equal number of fields in database")
 	}
 	for k, v := range sdb.FieldsNameMap {
 		result = append(result, []string{k, rec.FieldsValue[v]})
@@ -2159,31 +2158,28 @@ func (sdb *SmallDB) Get_fields_value_with_name(rec *Record) ([][]string, error) 
 	return result, nil
 }
 
-func (sdb *SmallDB) Find_record(ind int, args ...string) ([]*Record, int, error) {
+func (sdb *SmallDB) FindRecord(ind int, args ...string) ([]*common.Record, int, error) {
 	args_list := []string{}
-	for i, _ := range args {
-		args_list = append(args_list, args[i])
-	}
-
-	return sdb.Find_record_string_array(ind, args_list)
+	args_list = append(args_list, args...)
+	return sdb.FindRecordStringArray(ind, args_list)
 }
 
-func (sdb *SmallDB) Find_record_index_string(index []string, args []string) ([]*Record, int, error) {
+func (sdb *SmallDB) FindRecordIndexString(index []string, args []string) ([]*common.Record, int, error) {
 	ind := sdb.GetIndexIdByStringList(index)
 	if sdb.Debug > 1 {
 		fmt.Printf("ind %v\r\n", ind)
 	}
 
-	return sdb.Find_record_string_array(int(ind), args)
+	return sdb.FindRecordStringArray(int(ind), args)
 }
 
-func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record, int, error) {
-	data_res := []*Record{}
+func (sdb *SmallDB) FindRecordStringArray(ind int, args []string) ([]*common.Record, int, error) {
+	dataRes := []*common.Record{}
 	if !sdb.Inited {
-		return data_res, -1, errors.New("Data base not inited")
+		return dataRes, -1, errors.New("data base not inited")
 	}
 	if !sdb.Opened {
-		return data_res, -5, errors.New("Data base not opened")
+		return dataRes, -5, errors.New("data base not opened")
 	}
 	// ищет информацию по индексу
 	// формируем данные для поиска
@@ -2217,14 +2213,14 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 		}
 		// сформировали, ищем
 		inx := sdb.Hash(inxd)
-		pos_inx := (int64)(Index_header_structLen + inx*Index_structLen)
+		posInx := (int64)(IndexHeaderStructLen + inx*IndexStructLen)
 		if sdb.Debug > 3 {
-			fmt.Printf("inx %v read pos_inx %x \r\n", inx, pos_inx)
+			fmt.Printf("inx %v read pos_inx %x \r\n", inx, posInx)
 		}
-		bai := sdb.ReadIndex(ind, pos_inx, Index_structLen)
-		is, _, err := To_Index(bai)
+		bai := sdb.ReadIndex(ind, posInx, IndexStructLen)
+		is, _, err := ToIndex(bai)
 		if err != nil {
-			return data_res, -10, err
+			return dataRes, -10, err
 		}
 		if sdb.Debug > 3 {
 			fmt.Printf("is.Number %v\r\n", is.Number)
@@ -2239,10 +2235,10 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 				}
 				bsa, err := sdb.ReadBlocks((int64)(next_ptr))
 				if err != nil {
-					return data_res, -11, err
+					return dataRes, -11, err
 				}
 				// ищем конец и добавляем
-				flag_end_block := false
+				flagEndBlock := false
 				for j, bs := range bsa {
 					// читаем данные и проверяем на соответствие
 					if bs.PointerData != 0 {
@@ -2255,16 +2251,16 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 						}
 						var num int64 = -1
 						for i := 0; i < (int)(sdb.Dhs.Field_qty); i++ {
-							len_header := Data_structLen
+							len_header := DataStructLen
 							ba, err11 := sdb.ReadData(ptr, len_header)
 							if err11 != nil {
 								// fmt.Printf("Error %v\r\n", err11)
-								return data_res, -12, err11
+								return dataRes, -12, err11
 							}
-							ds, err, err1 := To_Data(ba)
+							ds, err, err1 := ToData(ba)
 							if err < 0 {
 								// fmt.Printf("Error %v %v\r\n", err, err1)
-								return data_res, -13, err1
+								return dataRes, -13, err1
 							}
 							ptr = ptr + (int64)(len_header)
 							d := ""
@@ -2275,13 +2271,13 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 								ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 								if err11 != nil {
 									// fmt.Printf("Error %v\r\n", err11)
-									return data_res, -14, err11
+									return dataRes, -14, err11
 								}
 								d = string(ba)
 								if sdb.Debug > 3 {
 									fmt.Printf("ds %v d %v ptr %v\r\n", ds, d, ptr)
 								}
-				
+
 								data = append(data, d)
 							}
 							num = ds.Id
@@ -2304,52 +2300,52 @@ func (sdb *SmallDB) Find_record_string_array(ind int, args []string) ([]*Record,
 						}
 						if flag {
 							// create Record
-							rec := Record{num, data}
+							rec := common.Record{Num: num, FieldsValue: data}
 							// добавляем в выборку
-							data_res = append(data_res, &rec)
+							dataRes = append(dataRes, &rec)
 							// зачем прекращать выборку????
 						}
 					} else {
 						// блок похоже без данных!
-						flag_end_block = true
+						flagEndBlock = true
 					}
 				}
-				if flag_end_block {
+				if flagEndBlock {
 					break
 				} else {
-					next_ptr = bsa[sdb.Config.Block_size-1].PointerFar
+					next_ptr = bsa[sdb.Config.BlockSize-1].PointerFar
 					if next_ptr == 0 {
 						break
 					}
 				}
 			}
-			return data_res, 0, nil
+			return dataRes, 0, nil
 		}
 	}
 	return nil, -2, errors.New("no data")
 }
 
-func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
-	ind := ROW_INDEX_ID
+func (sdb *SmallDB) DeleteRecord(rec int64) (int, error) {
+	ind := RowIndexID
 	if sdb.Debug > 1 {
 		fmt.Printf("ind %v\r\n", ind)
 	}
 	if !sdb.Inited {
-		return -1, errors.New("Data base not inited")
+		return -1, errors.New("data base not inited")
 	}
 	if !sdb.Opened {
-		return -5, errors.New("Data base not opened")
+		return -5, errors.New("data base not opened")
 	}
 
-	data_n := fmt.Sprintf("%v", rec)
+	dataN := fmt.Sprintf("%v", rec)
 	// сформировали, ищем
-	inx := sdb.Hash(data_n)
-	pos_inx := (int64)(Index_header_structLen + inx*Index_structLen)
+	inx := sdb.Hash(dataN)
+	posInx := (int64)(IndexHeaderStructLen + inx*IndexStructLen)
 	if sdb.Debug > 3 {
-		fmt.Printf("ind %v read pos_inx %x \r\n", ind, pos_inx)
+		fmt.Printf("ind %v read pos_inx %x \r\n", ind, posInx)
 	}
-	bai := sdb.ReadIndex(ind, pos_inx, Index_structLen)
-	is, _, err := To_Index(bai)
+	bai := sdb.ReadIndex(ind, posInx, IndexStructLen)
+	is, _, err := ToIndex(bai)
 	if err != nil {
 		return -15, err
 	}
@@ -2358,18 +2354,18 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 	}
 	// проверяем, что блок используется
 	if is.State != 0 {
-		next_ptr := is.PointerFar
+		nextPtr := is.PointerFar
 		// такой блок есть, считываем его
 		for {
 			if sdb.Debug > 3 {
-				fmt.Printf("block next_ptr %x\r\n", next_ptr)
+				fmt.Printf("block next_ptr %x\r\n", nextPtr)
 			}
-			bsa, err := sdb.ReadBlocks((int64)(next_ptr))
+			bsa, err := sdb.ReadBlocks((int64)(nextPtr))
 			if err != nil {
 				return -16, err
 			}
 			// ищем конец и добавляем
-			flag_end_block := false
+			flagEndBlock := false
 			for j, bs := range bsa {
 				// читаем данные и проверяем на соответствие
 				if bs.PointerData != 0 {
@@ -2379,26 +2375,26 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 						fmt.Printf("data ptr %v j %v\r\n", ptr, j)
 					}
 					for i := 0; i < (int)(sdb.Dhs.Field_qty); i++ {
-						len_header := Data_structLen
-						ba, err11 := sdb.ReadData(ptr, len_header)
+						lenHeader := DataStructLen
+						ba, err11 := sdb.ReadData(ptr, lenHeader)
 						if err11 != nil {
 							// fmt.Printf("Error %v\r\n", err11)
 							return -12, err11
 						}
-						ds, err, err1 := To_Data(ba)
+						ds, err, err1 := ToData(ba)
 						if err < 0 {
 							// fmt.Printf("Error %v %v\r\n", err, err1)
 							return -17, err1
 						}
 						// меняем и сохранем
 						ds.State = 1
-						ba, _, err1 = From_Data(ds)
+						ba, _, err1 = FromData(ds)
 						if err1 != nil {
 							return -17, err1
 						}
 						sdb.WriteData(ptr, ba)
 
-						ptr = ptr + (int64)(len_header)
+						ptr = ptr + (int64)(lenHeader)
 						if ds.DataLen == 0 {
 							//return 0, nil
 						} else {
@@ -2408,7 +2404,6 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 								return -13, err11
 							}
 							d := string(ba)
-							// data = append(data, d)
 							if sdb.Debug > 3 {
 								fmt.Printf("ds %v d %v ptr %v\r\n", ds, d, ptr)
 							}
@@ -2418,19 +2413,19 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 					if flag {
 						// помечаем блок
 						bsa[j].PointerData = 0
-						flag_end_block = true
+						flagEndBlock = true
 					}
 				} else {
-					flag_end_block = true
+					flagEndBlock = true
 				}
 			}
 
-			if flag_end_block {
+			if flagEndBlock {
 				sdb.WriteBlocks((int64)(is.PointerFar), bsa)
 				break
 			} else {
-				next_ptr = bsa[sdb.Config.Block_size-1].PointerFar
-				if next_ptr == 0 {
+				nextPtr = bsa[sdb.Config.BlockSize-1].PointerFar
+				if nextPtr == 0 {
 					break
 				}
 			}
@@ -2440,13 +2435,13 @@ func (sdb *SmallDB) Delete_record(rec int64) (int, error) {
 	return -2, errors.New("no data")
 }
 
-func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
-	data := []*Record{}
+func (sdb *SmallDB) LoadRecords(rec int) ([]*common.Record, int, error) {
+	data := []*common.Record{}
 	if !sdb.Inited {
-		return data, -1, errors.New("Data base not inited")
+		return data, -1, errors.New("data base not inited")
 	}
 	if sdb.Opened {
-		ptr := (int64)(Data_header_structLen)
+		ptr := (int64)(DataHeaderStructLen)
 		// открываем файл данных и считываем по очереди
 		for j := 0; j < rec; j++ {
 			if sdb.Debug > 5 {
@@ -2454,13 +2449,13 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 			}
 			var i int32
 			var num int64
-			data_r := []string{}
+			dataR := []string{}
 			if sdb.Debug > 6 {
 				fmt.Printf("sdb.Dhs.Field_qty %v\r\n", sdb.Dhs.Field_qty)
 			}
 			for i = 0; i < sdb.Dhs.Field_qty; i++ {
-				len_header := Data_structLen
-				ba, err11 := sdb.ReadData(ptr, len_header)
+				lenHeader := DataStructLen
+				ba, err11 := sdb.ReadData(ptr, lenHeader)
 				if err11 != nil {
 					// fmt.Printf("Error %v\r\n", err11)
 					return data, -12, err11
@@ -2469,25 +2464,21 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 					fmt.Printf("ba %v\r\n", ba)
 				}
 
-				ds, err, err1 := To_Data(ba)
-				if err < 0 {
-					// fmt.Printf("Error %v %v\r\n", err, err1)
-				}
-				if err1 != nil {
-					// fmt.Printf("Error %v\r\n", err11)
-					return data, -13, err1
+				ds, err1, err := ToData(ba)
+				if err != nil {
+					fmt.Printf("Error %v %v\r\n", err, err1)
+					return data, -13, err
 				}
 
 				if sdb.Debug > 7 {
 					fmt.Printf("ds %#v\r\n", ds)
 				}
 
-				ptr = ptr + (int64)(len_header)
+				ptr = ptr + (int64)(lenHeader)
 				if ds.State == 0 {
 					if ds.DataLen == 0 {
 						// it is not error - just no data
-						// return nil, 0, nil
-						data_r = append(data_r, "")
+						dataR = append(dataR, "")
 					} else {
 						ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 						if err11 != nil {
@@ -2499,14 +2490,14 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 						}
 
 						d := string(ba)
-						data_r = append(data_r, d)
+						dataR = append(dataR, d)
 					}
 					num = ds.Id
 				}
 				ptr = ptr + (int64)(ds.DataLen)
 			}
-			if len(data_r) > 0 {
-				rec := Record{num, data_r}
+			if len(dataR) > 0 {
+				rec := common.Record{Num: num, FieldsValue: dataR}
 				data = append(data, &rec)
 				if sdb.Debug > 5 {
 					fmt.Printf("data %v\r\n", data)
@@ -2514,14 +2505,14 @@ func (sdb *SmallDB) Load_records(rec int) ([]*Record, int, error) {
 			}
 		}
 	} else {
-		return data, -5, errors.New("Data base not opened")
+		return data, -5, errors.New("data base not opened")
 	}
 	return data, 0, nil
 }
 
-func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
-	data := []*Record{}
-	ind := ROW_INDEX_ID
+func (sdb *SmallDB) LoadRecord(rec int64) ([]*common.Record, int, error) {
+	data := []*common.Record{}
+	ind := RowIndexID
 	if sdb.Debug > 1 {
 		fmt.Printf("ind %v\r\n", ind)
 	}
@@ -2532,15 +2523,15 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 		return data, -5, errors.New("data base not opened")
 	}
 
-	data_n := fmt.Sprintf("%v", rec)
+	dataN := fmt.Sprintf("%v", rec)
 	// сформировали, ищем
-	inx := sdb.Hash(data_n)
-	pos_inx := (int64)(Index_header_structLen + inx*Index_structLen)
+	inx := sdb.Hash(dataN)
+	posInx := (int64)(IndexHeaderStructLen + inx*IndexStructLen)
 	if sdb.Debug > 3 {
-		fmt.Printf("ind %v read pos_inx %x \r\n", ind, pos_inx)
+		fmt.Printf("ind %v read pos_inx %x \r\n", ind, posInx)
 	}
-	bai := sdb.ReadIndex(ind, pos_inx, Index_structLen)
-	is, _, err := To_Index(bai)
+	bai := sdb.ReadIndex(ind, posInx, IndexStructLen)
+	is, _, err := ToIndex(bai)
 	if err != nil {
 		return data, -15, err
 	}
@@ -2560,25 +2551,25 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 				return data, -16, err
 			}
 			// ищем конец и добавляем
-			flag_end_block := false
+			flagEndBlock := false
 			for j, bs := range bsa {
 				// читаем данные и проверяем на соответствие
 				if bs.PointerData != 0 {
 					//flag := true
 					ptr := bs.PointerData
 					var num int64
-					data_r := []string{}
+					dataR := []string{}
 					if sdb.Debug > 3 {
 						fmt.Printf("data ptr %v j %v\r\n", ptr, j)
 					}
 					for i := 0; i < (int)(sdb.Dhs.Field_qty); i++ {
-						len_header := Data_structLen
-						ba, err11 := sdb.ReadData(ptr, len_header)
+						lenHeader := DataStructLen
+						ba, err11 := sdb.ReadData(ptr, lenHeader)
 						if err11 != nil {
 							// fmt.Printf("Error %v\r\n", err11)
 							return data, -12, err11
 						}
-						ds, err, err1 := To_Data(ba)
+						ds, err, err1 := ToData(ba)
 						if err < 0 {
 							// fmt.Printf("Error %v %v\r\n", err, err1)
 							return data, -17, err1
@@ -2586,11 +2577,11 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 						if sdb.Debug > 7 {
 							fmt.Printf("ds %#v\r\n", ds)
 						}
-						ptr = ptr + (int64)(len_header)
+						ptr = ptr + (int64)(lenHeader)
 						if ds.State == 0 {
 							if ds.DataLen == 0 {
 								// it is not error - just no data
-								data_r = append(data_r, "")
+								dataR = append(dataR, "")
 							} else {
 								ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 								if err11 != nil {
@@ -2602,15 +2593,15 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 								}
 
 								d := string(ba)
-								data_r = append(data_r, d)
+								dataR = append(dataR, d)
 							}
 							num = ds.Id
 						}
 						ptr = ptr + (int64)(ds.DataLen)
 					}
 					if num == rec {
-						if len(data_r) > 0 {
-							rec := Record{num, data_r}
+						if len(dataR) > 0 {
+							rec := common.Record{Num: num, FieldsValue: dataR}
 							data = append(data, &rec)
 							if sdb.Debug > 5 {
 								fmt.Printf("data %v\r\n", data)
@@ -2618,13 +2609,13 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 						}
 					}
 				} else {
-					flag_end_block = true
+					flagEndBlock = true
 				}
 			}
-			if flag_end_block {
+			if flagEndBlock {
 				break
 			} else {
-				next_ptr = bsa[sdb.Config.Block_size-1].PointerFar
+				next_ptr = bsa[sdb.Config.BlockSize-1].PointerFar
 				if next_ptr == 0 {
 					break
 				}
@@ -2635,30 +2626,28 @@ func (sdb *SmallDB) Load_record(rec int64) ([]*Record, int, error) {
 	return data, -2, errors.New("no data")
 }
 
-func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), error) {
-	// data := []*Record{}
+func (sdb *SmallDB) LoadLazyRecords(rec int) (func() (*common.Record, int, error), error) {
 	if !sdb.Inited {
-		return nil, errors.New("Data base not inited")
+		return nil, errors.New("data base not inited")
 	}
 	if sdb.Opened {
-		ptr := (int64)(Data_header_structLen)
+		ptr := (int64)(DataHeaderStructLen)
 		// открываем файл данных и считываем по очереди
-                j := 0
-//		for j := 0; j < rec; j++ {
-		lazy_load := func() (*Record, int, error) { 
-                        var data *Record
+		j := 0
+		lazyLoad := func() (*common.Record, int, error) {
+			var data *common.Record
 			if sdb.Debug > 5 {
 				fmt.Printf("current rec %v\r\n", j)
 			}
 			var i int32
 			var num int64
-			data_r := []string{}
+			dataR := []string{}
 			if sdb.Debug > 6 {
 				fmt.Printf("sdb.Dhs.Field_qty %v\r\n", sdb.Dhs.Field_qty)
 			}
 			for i = 0; i < sdb.Dhs.Field_qty; i++ {
-				len_header := Data_structLen
-				ba, err11 := sdb.ReadData(ptr, len_header)
+				lenHeader := DataStructLen
+				ba, err11 := sdb.ReadData(ptr, lenHeader)
 				if err11 != nil {
 					//fmt.Printf("Error %v\r\n", err11)
 					return data, -12, err11
@@ -2667,7 +2656,7 @@ func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), err
 					fmt.Printf("ba %v\r\n", ba)
 				}
 
-				ds, err, err1 := To_Data(ba)
+				ds, err, err1 := ToData(ba)
 				if err < 0 {
 					fmt.Printf("Error %v %v\r\n", err, err1)
 				}
@@ -2675,12 +2664,12 @@ func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), err
 					fmt.Printf("ds %#v\r\n", ds)
 				}
 
-				ptr = ptr + (int64)(len_header)
+				ptr = ptr + (int64)(lenHeader)
 				if ds.State == 0 {
 					if ds.DataLen == 0 {
 						// it is not error - just no data
 						// return nil, 0, nil
-						data_r = append(data_r, "")
+						dataR = append(dataR, "")
 					} else {
 						ba, err11 = sdb.ReadData(ptr, (int)(ds.DataLen))
 						if err11 != nil {
@@ -2692,14 +2681,14 @@ func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), err
 						}
 
 						d := string(ba)
-						data_r = append(data_r, d)
+						dataR = append(dataR, d)
 					}
 					num = ds.Id
 				}
 				ptr = ptr + (int64)(ds.DataLen)
 			}
-			if len(data_r) > 0 {
-				rec := Record{num, data_r}
+			if len(dataR) > 0 {
+				rec := common.Record{Num: num, FieldsValue: dataR}
 				data = &rec
 				if sdb.Debug > 5 {
 					fmt.Printf("data %v\r\n", data)
@@ -2707,10 +2696,7 @@ func (sdb *SmallDB) Load_lazy_records(rec int) (func()(*Record, int, error), err
 			}
 			return data, 0, nil
 		}
-		return lazy_load, nil
-//		}
-	} else {
-		return nil, errors.New("Data base not opened")
+		return lazyLoad, nil
 	}
-	return nil, nil
+	return nil, errors.New("data base not opened")
 }

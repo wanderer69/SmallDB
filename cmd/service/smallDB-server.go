@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/signal"
 
-	. "github.com/wanderer69/SmallDB/server"
+	"github.com/wanderer69/SmallDB/internal/server"
 )
 
 type Settings struct {
@@ -17,7 +17,7 @@ type Settings struct {
 }
 
 func LoadSettings(name string) (*Settings, error) {
-	data, err := ioutil.ReadFile(name) // "settings.json"
+	data, err := ioutil.ReadFile(name)
 	if err != nil {
 		fmt.Print(err)
 		return nil, err
@@ -37,7 +37,7 @@ func SaveSettings(s *Settings, name string) error {
 		fmt.Println("error:", err2_)
 		return err2_
 	}
-	_ = ioutil.WriteFile(name, data_1, 0644) // "settings.json"
+	_ = ioutil.WriteFile(name, data_1, 0644)
 	return nil
 }
 
@@ -50,8 +50,7 @@ func main() {
 	flag.Parse()
 
 	var port int
-	
-	//fmt.Printf("len(file_settings_var) %v\r\n", len(file_settings_var))
+
 	if len(file_settings_var) > 0 {
 		s, err_ := LoadSettings(file_settings_var)
 		if err_ != nil {
@@ -66,11 +65,11 @@ func main() {
 			return
 		}
 		port = s.Port
-	} else { 
+	} else {
 		port = port_var
 	}
 
-	SmallDBServer("/smallDB/api/v1", port)
+	server.SmallDBServer("/smallDB/api/v1", port)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, os.Interrupt)
 

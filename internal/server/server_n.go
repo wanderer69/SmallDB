@@ -8,18 +8,18 @@ import (
 
 	"errors"
 
-	. "github.com/wanderer69/SmallDB/v3"
+	db "github.com/wanderer69/SmallDB/internal/index"
 
 	"github.com/kabukky/httpscerts"
-	. "github.com/wanderer69/SmallDB/common"
+	"github.com/wanderer69/SmallDB/internal/common"
 )
 
 func TLSGenKey(port int) error {
 	err := httpscerts.Check("cert.pem", "key.pem")
 	if err != nil {
 		if (port < 1024) || (port > 49151) {
-			return errors.New("Port range out")
-		} 
+			return errors.New("port range out")
+		}
 		addr := fmt.Sprintf("127.0.0.1:%d", port)
 		err = httpscerts.Generate("cert.pem", "key.pem", addr)
 		if err != nil {
@@ -43,14 +43,14 @@ type WordListAnswer struct {
 }
 
 func SmallDBServer(prefix string, port int) int {
-/*
-Методы сервиса маленькой дазы банных 
-	Создать базу
-	Записать в базу
-	Прочитать запись либо записи из базы
-	Найти записи в базе по индексу
-	Удалить запись из базы
-*/
+	/*
+	   Методы сервиса маленькой дазы банных
+	   	Создать базу
+	   	Записать в базу
+	   	Прочитать запись либо записи из базы
+	   	Найти записи в базе по индексу
+	   	Удалить запись из базы
+	*/
 
 	H_CreateDB := func(w http.ResponseWriter, req *http.Request) {
 		// Создать базу
@@ -59,45 +59,8 @@ func SmallDBServer(prefix string, port int) int {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-/*
-		// проверяем токен
-		bearToken := req.Header.Get("Authorization")
-
-		bearToken_lst := strings.Split(bearToken, " ")
-		if len(bearToken_lst) != 2 {
-			//fmt.Printf("2\r\n")
-			http.Error(w, "Bad length token", http.StatusInternalServerError)
-			return
-		}
-		if bearToken_lst[0] != "Bearer" {
-			http.Error(w, "Authorization not bearer", http.StatusInternalServerError)
-			return
-		}
-
-		accessToken := bearToken_lst[1]
-
-		fmt.Printf("accessToken %v\r\n", accessToken)
-
-		request := &proto.CheckTokenRequest{
-			Token: accessToken,
-		}
-		response, err := client.CheckToken(context.Background(), request)
-		if err != nil {
-			grpclog.Fatalf("fail to dial: %v", err)
-		}
-
-		fmt.Println(response)
-		// ищем 
-		if len(response.Result) == 0 {
-			  // ошибка !
-		}
-		fmt.Printf("-> %#v\r\n", response)
-		// получили сессионный ключ
-		session_key := response.SessionKey
-*/
-
 		// body -> struct
-		var jc JobCreate 
+		var jc common.JobCreate
 		err = json.Unmarshal([]byte(body), &jc)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -105,32 +68,27 @@ func SmallDBServer(prefix string, port int) int {
 		}
 		result := "Error"
 		error_t := ""
-		// every time initialize ??? 
-		sdb := Init_SmallDB(jc.DB_path)
+		// every time initialize ???
+		sdb := db.InitSmallDB(jc.DB_path)
 		sdb.Debug = 0
-		p_sdb := &sdb
 		if !sdb.Inited {
 			fl := []string{}
-			for i, _ := range jc.CreateDB.Fields {
+			for i := range jc.CreateDB.Fields {
 				fl = append(fl, jc.CreateDB.Fields[i].Name)
 			}
-
-//			fmt.Printf("CreateDB ...")
-			res := p_sdb.CreateDB(fl, jc.DB_path)
-			if res < 0 {
-				error_t = fmt.Sprintf("CreateDB error %v\r\n", res)
+			err = sdb.CreateDB(fl, jc.DB_path)
+			if err != nil {
+				error_t = fmt.Sprintf("CreateDB error %v\r\n", err)
 			} else {
-//			fmt.Printf("done\r\n")
-				for i, _ := range jc.CreateDB.Indexes {
+				for i := range jc.CreateDB.Indexes {
 					inx := jc.CreateDB.Indexes[i].Fields
-					p_sdb.CreateIndex(inx)
+					sdb.CreateIndex(inx)
 				}
 				result = "OK"
 			}
-//			fmt.Printf("CreateDB end\r\n")
 		}
 
-		jr := JobResult{}
+		jr := common.JobResult{}
 		jr.Type = "create" // type -> create add find read delete
 		jr.Result = result
 		jr.Error = error_t
@@ -149,7 +107,7 @@ func SmallDBServer(prefix string, port int) int {
 			return
 		}
 		// body -> struct
-		var ja JobAdd 
+		var ja common.JobAdd
 		err = json.Unmarshal([]byte(body), &ja)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -157,46 +115,40 @@ func SmallDBServer(prefix string, port int) int {
 		}
 		result := "Error"
 		error_t := ""
-		// every time initialize ??? 
-		sdb := Init_SmallDB(ja.DB_path)
+		// every time initialize ???
+		sdb := db.InitSmallDB(ja.DB_path)
 		sdb.Debug = 0
-		p_sdb := &sdb
-		rrec := []Record{}
+		rrec := []common.Record{}
 		if sdb.Inited {
-			res, err := p_sdb.OpenDB()
+			err := sdb.OpenDB()
 			if err != nil {
 				error_t = fmt.Sprintf("Error %v\r\n", err)
 			} else {
-				if res < 0 {
-					error_t = fmt.Sprintf("Error %v\r\n", res)
-				} else {
-					for i, _ := range ja.AddRecs {
-						mmd := make(map[string]string)
-						for j, _ := range ja.AddRecs[i].Rec {
-							f := ja.AddRecs[i].Rec[j].Name
-							val := ja.AddRecs[i].Rec[j].Value
-							mmd[f] = val
-						}
-						_, num, err := sdb.Store_record_on_map(mmd)
-						if err != nil {
-							error_t = fmt.Sprintf("Error %v\r\n", err)
-							break
-						} else {
-							rec := Record{}
-							rec.Num = num
-							rrec = append(rrec, rec)
-						}
+				for i := range ja.AddRecs {
+					mmd := make(map[string]string)
+					for j := range ja.AddRecs[i].Rec {
+						f := ja.AddRecs[i].Rec[j].Name
+						val := ja.AddRecs[i].Rec[j].Value
+						mmd[f] = val
 					}
-					if len(error_t) == 0 {
-						result = "OK"
+					_, num, err := sdb.StoreRecordOnMap(mmd)
+					if err != nil {
+						error_t = fmt.Sprintf("Error %v\r\n", err)
+						break
+					} else {
+						rec := common.Record{}
+						rec.Num = num
+						rrec = append(rrec, rec)
 					}
 				}
-//				fmt.Printf("done.\r\n")
-				p_sdb.CloseData()
+				if len(error_t) == 0 {
+					result = "OK"
+				}
+				sdb.CloseData()
 			}
-		}	
+		}
 
-		jr := JobResult{}
+		jr := common.JobResult{}
 		jr.Type = "add" // type -> create add find read delete
 		jr.Result = result
 		jr.Error = error_t
@@ -216,7 +168,7 @@ func SmallDBServer(prefix string, port int) int {
 			return
 		}
 		// body -> struct
-		var jf JobFind 
+		var jf common.JobFind
 		err = json.Unmarshal([]byte(body), &jf)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -224,47 +176,40 @@ func SmallDBServer(prefix string, port int) int {
 		}
 		result := "Error"
 		error_t := ""
-		// every time initialize ??? 
-		sdb := Init_SmallDB(jf.DB_path)
+		// every time initialize ???
+		sdb := db.InitSmallDB(jf.DB_path)
 		sdb.Debug = 0
-		p_sdb := &sdb
-		rrec := []Record{}
+		rrec := []common.Record{}
 		if sdb.Inited {
-			res, err := p_sdb.OpenDB()
+			err := sdb.OpenDB()
 			if err != nil {
 				error_t = fmt.Sprintf("Error %v\r\n", err)
 			} else {
-				if res < 0 {
-					error_t = fmt.Sprintf("Error %v\r\n", res)
-				} else {
-					fl := []string{}
-					values := []string{}
-					for j, _ := range jf.FindRec {
-						f := jf.FindRec[j].Name
-						val := jf.FindRec[j].Value
-						fl = append(fl, f)
-						values = append(values, val)
-					}
-					ds, _, err1 := p_sdb.Find_record_index_string(fl, values)
-					if err1 != nil {
-						error_t = fmt.Sprintf("Error %v\r\n", err1)
-					} else {
-						for i, _ := range ds {
-							rec := Record{ds[i].Num, ds[i].FieldsValue}
-							rrec = append(rrec, rec)
-						}
-					}
-					if len(error_t) == 0 {
-						result = "OK"
-					}
-
+				fl := []string{}
+				values := []string{}
+				for j := range jf.FindRec {
+					f := jf.FindRec[j].Name
+					val := jf.FindRec[j].Value
+					fl = append(fl, f)
+					values = append(values, val)
 				}
-//				fmt.Printf("done.\r\n")
-				p_sdb.CloseData()
+				ds, _, err1 := sdb.FindRecordIndexString(fl, values)
+				if err1 != nil {
+					error_t = fmt.Sprintf("Error %v\r\n", err1)
+				} else {
+					for i := range ds {
+						rec := common.Record{Num: ds[i].Num, FieldsValue: ds[i].FieldsValue}
+						rrec = append(rrec, rec)
+					}
+				}
+				if len(error_t) == 0 {
+					result = "OK"
+				}
+				sdb.CloseData()
 			}
-		}	
+		}
 
-		jr := JobResult{}
+		jr := common.JobResult{}
 		jr.Type = "find" // type -> create add find read delete
 		jr.Result = result
 		jr.Error = error_t
@@ -284,7 +229,7 @@ func SmallDBServer(prefix string, port int) int {
 			return
 		}
 		// body -> struct
-		var jrd JobRead 
+		var jrd common.JobRead
 		err = json.Unmarshal([]byte(body), &jrd)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -292,38 +237,32 @@ func SmallDBServer(prefix string, port int) int {
 		}
 		result := "Error"
 		error_t := ""
-		// every time initialize ??? 
-		sdb := Init_SmallDB(jrd.DB_path)
+		// every time initialize ???
+		sdb := db.InitSmallDB(jrd.DB_path)
 		sdb.Debug = 0
-		p_sdb := &sdb
-		rrec := []Record{}
+		rrec := []common.Record{}
 		if sdb.Inited {
-			res, err := p_sdb.OpenDB()
+			err := sdb.OpenDB()
 			if err != nil {
 				error_t = fmt.Sprintf("Error %v\r\n", err)
 			} else {
-				if res < 0 {
-					error_t = fmt.Sprintf("Error %v\r\n", res)
+				ds, _, err1 := sdb.LoadRecord(jrd.NumRec)
+				if err1 != nil {
+					error_t = fmt.Sprintf("Error %v\r\n", err1)
 				} else {
-					ds, _, err1 := p_sdb.Load_record(jrd.NumRec)
-					if err1 != nil {
-						error_t = fmt.Sprintf("Error %v\r\n", err1)
-					} else {
-						for i, _ := range ds {
-							rec := Record{ds[i].Num, ds[i].FieldsValue}
-							rrec = append(rrec, rec)
-						}
-					}
-					if len(error_t) == 0 {
-						result = "OK"
+					for i := range ds {
+						rec := common.Record{Num: ds[i].Num, FieldsValue: ds[i].FieldsValue}
+						rrec = append(rrec, rec)
 					}
 				}
-//				fmt.Printf("done.\r\n")
-				p_sdb.CloseData()
+				if len(error_t) == 0 {
+					result = "OK"
+				}
+				sdb.CloseData()
 			}
-		}	
+		}
 
-		jr := JobResult{}
+		jr := common.JobResult{}
 		jr.Type = "read" // type -> create add find read delete
 		jr.Result = result
 		jr.Error = error_t
@@ -343,7 +282,7 @@ func SmallDBServer(prefix string, port int) int {
 			return
 		}
 		// body -> struct
-		var jd JobDelete 
+		var jd common.JobDelete
 		err = json.Unmarshal([]byte(body), &jd)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -351,36 +290,29 @@ func SmallDBServer(prefix string, port int) int {
 		}
 		result := "Error"
 		error_t := ""
-		// every time initialize ??? 
-		sdb := Init_SmallDB(jd.DB_path)
+		// every time initialize ???
+		sdb := db.InitSmallDB(jd.DB_path)
 		sdb.Debug = 0
-		p_sdb := &sdb
 		if sdb.Inited {
-			res, err := p_sdb.OpenDB()
+			err := sdb.OpenDB()
 			if err != nil {
 				error_t = fmt.Sprintf("Error %v\r\n", err)
 			} else {
-				if res < 0 {
-					error_t = fmt.Sprintf("Error %v\r\n", res)
-				} else {					
-					_, err1 := p_sdb.Delete_record(jd.NumRec)
-					if err1 != nil {
-						error_t = fmt.Sprintf("Error %v\r\n", err1)
-					}
-					if len(error_t) == 0 {
-						result = "OK"
-					}
+				_, err1 := sdb.DeleteRecord(jd.NumRec)
+				if err1 != nil {
+					error_t = fmt.Sprintf("Error %v\r\n", err1)
 				}
-//				fmt.Printf("done.\r\n")
-				p_sdb.CloseData()
+				if len(error_t) == 0 {
+					result = "OK"
+				}
+				sdb.CloseData()
 			}
-		}	
+		}
 
-		jr := JobResult{}
+		jr := common.JobResult{}
 		jr.Type = "delete" // type -> create add find read delete
 		jr.Result = result
 		jr.Error = error_t
-//		jr.Records = rrec
 		ba, _ := json.MarshalIndent(jr, "", "  ")
 
 		w.Header().Set("Content-Type", "application/json")
@@ -394,11 +326,6 @@ func SmallDBServer(prefix string, port int) int {
 		http.HandleFunc(prefix+"/c/find", H_FindDB)
 		http.HandleFunc(prefix+"/c/read", H_ReadDB)
 		http.HandleFunc(prefix+"/c/delete", H_DeleteDB)
-/*
-		http.HandleFunc(prefix+"/c/key", H_send_key)
-		http.HandleFunc(prefix+"/c/login", H_login_s)
-		http.HandleFunc(prefix+"/c/register", H_register_s)
-*/
 
 		prt := fmt.Sprintf(":%d", port)
 		http.ListenAndServe(prt, nil)
