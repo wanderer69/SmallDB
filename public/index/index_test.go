@@ -1,4 +1,4 @@
-package small_db
+package index
 
 import (
 	"fmt"
