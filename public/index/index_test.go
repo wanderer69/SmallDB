@@ -6,10 +6,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/wanderer69/SmallDB/internal/common"
-	expr "github.com/wanderer69/SmallDB/internal/expr"
+	expr "github.com/wanderer69/SmallDB/public/expr"
+	"github.com/wanderer69/tools/unique"
 )
 
 const pathToDB = "./testDB"
@@ -196,7 +198,8 @@ func (suite *SmallDBSuite) TestCreateDBOpenDBWriteDBReadDBFindDB() {
 		el := []*expr.Expr{}
 		for i := range job.AddRec {
 			fl = append(fl, job.AddRec[i].Name)
-			expr := expr.Expression_parse(job.AddRec[i].Value)
+			expr, err := expr.ExpressionParse(job.AddRec[i].Value)
+			require.NoError(t, err)
 			if expr == nil {
 				return
 			}
@@ -207,7 +210,7 @@ func (suite *SmallDBSuite) TestCreateDBOpenDBWriteDBReadDBFindDB() {
 			Value int
 		}
 		mmd := make(map[string]IntCache)
-		rand.Seed(1000)
+
 		fmt.Printf("Write begin...\r\n")
 		numRec := job.NumRec
 		expectedPos := []int{20, 166, 312, 458, 604}
@@ -226,7 +229,7 @@ func (suite *SmallDBSuite) TestCreateDBOpenDBWriteDBReadDBFindDB() {
 				}
 				switch el[j].Mode {
 				case "Random":
-					v := name + common.UniqueValue(d_size)
+					v := name + unique.UniqueValue(d_size)
 					val = append(val, v)
 					fv.Value = v
 				case "RandomStep":
@@ -234,7 +237,7 @@ func (suite *SmallDBSuite) TestCreateDBOpenDBWriteDBReadDBFindDB() {
 					if ok {
 						if v.Value == 0 {
 							p := el[j].Step
-							d := common.UniqueValue(d_size)
+							d := unique.UniqueValue(d_size)
 							mmd[fl[j]] = IntCache{d, p}
 							v.Value = p
 							v.Key = d
@@ -244,7 +247,7 @@ func (suite *SmallDBSuite) TestCreateDBOpenDBWriteDBReadDBFindDB() {
 						}
 					} else {
 						p := el[j].Step
-						d := common.UniqueValue(d_size)
+						d := unique.UniqueValue(d_size)
 						mmd[fl[j]] = IntCache{d, p}
 						v.Value = p
 						v.Key = d

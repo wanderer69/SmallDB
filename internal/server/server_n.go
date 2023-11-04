@@ -8,7 +8,7 @@ import (
 
 	"errors"
 
-	db "github.com/wanderer69/SmallDB/internal/index"
+	db "github.com/wanderer69/SmallDB/public/index"
 
 	"github.com/kabukky/httpscerts"
 	"github.com/wanderer69/SmallDB/internal/common"

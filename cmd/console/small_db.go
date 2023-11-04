@@ -8,15 +8,16 @@ import (
 
 	"encoding/json"
 	"flag"
-	"io/ioutil"
+
+	"github.com/wanderer69/tools/unique"
 
 	"github.com/wanderer69/SmallDB/internal/common"
-	expr "github.com/wanderer69/SmallDB/internal/expr"
-	db "github.com/wanderer69/SmallDB/internal/index"
+	expr "github.com/wanderer69/SmallDB/public/expr"
+	db "github.com/wanderer69/SmallDB/public/index"
 )
 
 func LoadJob(name string) (*common.Job, error) {
-	data, err := ioutil.ReadFile(name)
+	data, err := os.ReadFile(name)
 	if err != nil {
 		fmt.Print(err)
 		return nil, err
@@ -37,12 +38,12 @@ func SaveJob(name string, s *common.Job) error {
 		return err2
 	}
 
-	_ = ioutil.WriteFile(name, data_1, 0644)
+	_ = os.WriteFile(name, data_1, 0644)
 	return nil
 }
 
 func main() {
-	common.InitUniqueValue()
+	unique.InitUniqueValue()
 	argsWithoutProg := os.Args[1:]
 	if len(argsWithoutProg) == 0 {
 		fmt.Printf("_ <base> <test>\r\n")
@@ -159,7 +160,11 @@ func main() {
 		el := []*expr.Expr{}
 		for i := range job.AddRec {
 			fl = append(fl, job.AddRec[i].Name)
-			expr := expr.Expression_parse(job.AddRec[i].Value)
+			expr, err := expr.ExpressionParse(job.AddRec[i].Value)
+			if err != nil {
+				fmt.Printf("Error %v\r\n", err)
+				return
+			}
 			if expr == nil {
 				return
 			}
@@ -170,10 +175,9 @@ func main() {
 			Value int
 		}
 		mmd := make(map[string]IntCache)
-		rand.Seed(1000)
 		var data_a []map[string]string
 		if len(job.DataFile) > 0 {
-			file, err := ioutil.ReadFile(job.DataFile)
+			file, err := os.ReadFile(job.DataFile)
 			if err != nil {
 				fmt.Printf("Error - %v\r\n", err)
 			} else {
@@ -198,7 +202,7 @@ func main() {
 				}
 				switch el[j].Mode {
 				case "Random":
-					v := name + common.UniqueValue(d_size)
+					v := name + unique.UniqueValue(d_size)
 					val = append(val, v)
 					fv.Value = v
 				case "RandomStep":
@@ -206,7 +210,7 @@ func main() {
 					if ok {
 						if v.Value == 0 {
 							p := el[j].Step
-							d := common.UniqueValue(d_size)
+							d := unique.UniqueValue(d_size)
 							mmd[fl[j]] = IntCache{d, p}
 							v.Value = p
 							v.Key = d
@@ -216,7 +220,7 @@ func main() {
 						}
 					} else {
 						p := el[j].Step
-						d := common.UniqueValue(d_size)
+						d := unique.UniqueValue(d_size)
 						mmd[fl[j]] = IntCache{d, p}
 						v.Value = p
 						v.Key = d
